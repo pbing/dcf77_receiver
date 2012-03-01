@@ -1,5 +1,2 @@
 syn/
-sim/*.do
-sim/*.mti
-sim/*.mpf
-sim/*.wlf
+sim/
