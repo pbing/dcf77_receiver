@@ -10,7 +10,7 @@ module tb_usb_rx;
 
    import types::*;
 
-   bit        rstx;
+   bit        reset=1;
    bit        clk;
    d_port_t   d,line_state;
    wire [7:0] data;
@@ -45,7 +45,8 @@ module tb_usb_rx;
 
    initial
      begin
-        rstx<=#40ns 1;
+	repeat(3) @(posedge clk);
+	reset=0;
 
 	#1.234us sync();
 	pid(DATA0);
