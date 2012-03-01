@@ -1,6 +1,6 @@
 /* USB-2.0 low/full speed receiver */
 
-module usb_rx(input              rstx, // system reset (low active)
+module usb_rx(input              reset, // system reset (low active)
 	      input 		 clk, // system clock (low speed: 6 MHz, full speed: 48 MHz)
 	      input 		 types::d_port_t d, // USB port D+,D-
 	      output logic [7:0] data, // data to SIE
@@ -11,12 +11,12 @@ module usb_rx(input              rstx, // system reset (low active)
 
    import types::*;
 
-   d_port_t    d_s[1:4]; // [1:2]=sync [2:4]=majority
-   logic       j,k,se0;
+   var d_port_t d_s[1:4]; // [1:2]=sync [2:4]=majority
+   logic        j,k,se0;
 
    /* synchronize to system clock */
-   always_ff @(posedge clk or negedge rstx)
-     if(!rstx)
+   always_ff @(posedge clk)
+     if(reset)
        for(int i=1;i<=4;i++)
 	 d_s[i]<=J; // IDLE
      else
@@ -41,8 +41,8 @@ module usb_rx(input              rstx, // system reset (low active)
    /* detect rising edge of J or K */
    logic j_1,k_1,jk_edge;
 
-   always_ff @(posedge clk or negedge rstx)
-     if(!rstx)
+   always_ff @(posedge clk)
+     if(reset)
        begin
 	  j_1<=1'b0;
 	  k_1<=1'b0;
@@ -59,8 +59,8 @@ module usb_rx(input              rstx, // system reset (low active)
    enum logic [1:0] {DLLSTATE[4]} dll_state,dll_next;
    logic clk_en;
 
-   always_ff @(posedge clk or negedge rstx)
-     if(!rstx)
+   always_ff @(posedge clk)
+     if(reset)
        dll_state<=DLLSTATE0;
      else
        dll_state<=dll_next;
@@ -109,8 +109,8 @@ module usb_rx(input              rstx, // system reset (low active)
    enum logic [4:0] {RESET,SYNC[8],RX_DATA_WAIT[8],RX_DATA,STRIP_EOP[2],ERROR,ABORT[1:2],TERMINATE,DUMMY[8]} rx_state,rx_next;
    logic rcv_bit,rcv_data;
 
-   always_ff @(posedge clk or negedge rstx)
-     if(!rstx)
+   always_ff @(posedge clk)
+     if(reset)
        rx_state<=RESET;
      else
        rx_state<=rx_next;
@@ -204,8 +204,8 @@ module usb_rx(input              rstx, // system reset (low active)
    logic d0;
    logic [1:2] nrzi;
 
-   always_ff @(posedge clk or negedge rstx)
-     if(!rstx)
+   always_ff @(posedge clk)
+     if(reset)
        nrzi<='0;
      else if(clk_en)
        begin
@@ -218,8 +218,8 @@ module usb_rx(input              rstx, // system reset (low active)
    /* bit unstuffing */
    logic [2:0] num_ones;
 
-   always_ff @(posedge clk or negedge rstx)
-     if(!rstx)
+   always_ff @(posedge clk)
+     if(reset)
        num_ones<='0;
      else if(clk_en)
        if(d0)
@@ -240,8 +240,8 @@ module usb_rx(input              rstx, // system reset (low active)
     */
    logic [7:0] rx_shift;
 
-   always_ff @(posedge clk or negedge rstx)
-     if(!rstx)
+   always_ff @(posedge clk)
+     if(reset)
        begin
 	  rx_shift<='0;
 	  data<='0;
