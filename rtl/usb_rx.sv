@@ -1,18 +1,25 @@
 /* USB-2.0 low/full speed receiver */
 
-module usb_rx(input              reset, // system reset (low active)
-	      input 		 clk, // system clock (low speed: 6 MHz, full speed: 48 MHz)
-	      input 		 types::d_port_t d, // USB port D+,D-
-	      output logic [7:0] data, // data to SIE
-	      output logic 	 active, // active between SYNC und EOP
-	      output logic 	 valid, // data valid pulse
-	      output logic 	 error, // error detected
+module usb_rx(input              reset,                       // system reset (low active)
+	      input 		 clk,                         // system clock (24 MHz)
+	      input 		 types::d_port_t d,           // USB port D+,D-
+	      output logic [7:0] data,                        // data to SIE
+	      output logic 	 active,                      // active between SYNC und EOP
+	      output logic 	 valid,                       // data valid pulse
+	      output logic 	 error,                       // error detected
 	      output 		 types::d_port_t line_state); // synchronized D+,D-
 
    import types::*;
 
    var d_port_t d_s[1:4]; // [1:2]=sync [2:4]=majority
-   logic        j,k,se0;
+   logic        j,k,se0,cdr_q;
+
+   /*
+    * Clock and Data Recovery
+    * low speed : .d(k)
+    * full speed: .d(j)
+    */
+   cdr cdr(.reset(reset),.clk(clk),.d(k),.q(cdr_q),.strobe(clk_en));
 
    /* synchronize to system clock */
    always_ff @(posedge clk)
@@ -35,71 +42,6 @@ module usb_rx(input              reset, // system reset (low active)
    always_comb line_state=d_s[2];
 
    /*************************************************************
-    * DLL for synchronizing the sampling at the midpoint
-    *************************************************************/
-
-   /* detect rising edge of J or K */
-   logic j_1,k_1,jk_edge;
-
-   always_ff @(posedge clk)
-     if(reset)
-       begin
-	  j_1<=1'b0;
-	  k_1<=1'b0;
-       end
-     else
-       begin
-	  j_1<=j;
-	  k_1<=k;
-       end
-
-   always_comb jk_edge=(!j_1&&j) || (!k_1&&k) ;
-
-   /* DLL FSM */
-   enum logic [1:0] {DLLSTATE[4]} dll_state,dll_next;
-   logic clk_en;
-
-   always_ff @(posedge clk)
-     if(reset)
-       dll_state<=DLLSTATE0;
-     else
-       dll_state<=dll_next;
-
-   always_comb
-     begin
-	clk_en=1'b0;
-
-	unique case(dll_state)
-	  DLLSTATE0:
-	    if(jk_edge)
-	      dll_next=DLLSTATE0;
-	    else
-	      begin
-		 clk_en=1'b1;
-		 dll_next=DLLSTATE1;
-	      end
-
-	  DLLSTATE1:
-	    if(jk_edge)
-	      dll_next=DLLSTATE3;
-	    else
-	      dll_next=DLLSTATE2;
-
-	  DLLSTATE2:
-	    if(jk_edge)
-	      dll_next=DLLSTATE0;
-	    else
-	      dll_next=DLLSTATE3;
-
-	  DLLSTATE3:
-	    dll_next=DLLSTATE0;
-
-	  default
-	    dll_next=DLLSTATE0;
-	endcase
-     end
-
-   /*************************************************************
     * RX FSM
     *
     * Use dummy states to get a state number of powers of two.
@@ -117,6 +59,11 @@ module usb_rx(input              reset, // system reset (low active)
 
    always_comb
      begin
+	logic cdr_j,cdr_k;
+
+	cdr_j=~cdr_q; // low speed: ~cdr_q, full speed:  cdr_q
+	cdr_k=cdr_q;  // low speed:  cdr_q, full speed: ~cdr_q
+	
 	rx_next=rx_state;
 	active=1'b0;
 	rcv_data=1'b0;
@@ -124,16 +71,16 @@ module usb_rx(input              reset, // system reset (low active)
 
 	unique case(rx_state)
 	  RESET:
-	    if(clk_en && k) rx_next=SYNC0;
+	    if(clk_en && cdr_k) rx_next=SYNC0;
 
 	  SYNC0,SYNC2,SYNC4:
-	    if(clk_en && j) rx_next=rx_state.next();
+	    if(clk_en && cdr_j) rx_next=rx_state.next();
 
 	  SYNC1,SYNC3,SYNC5,SYNC6:
-	    if(clk_en && k) rx_next=rx_state.next();
+	    if(clk_en && cdr_k) rx_next=rx_state.next();
 
 	  SYNC7:
-	    if(clk_en && k) rx_next=RX_DATA_WAIT0;
+	    if(clk_en && cdr_k) rx_next=RX_DATA_WAIT0;
 
 	  RX_DATA_WAIT0,RX_DATA_WAIT1,RX_DATA_WAIT2,RX_DATA_WAIT3,
 	    RX_DATA_WAIT4,RX_DATA_WAIT5,RX_DATA_WAIT6:
@@ -186,7 +133,7 @@ module usb_rx(input              reset, // system reset (low active)
 	  ABORT2:
 	    begin
 	       active=1'b1;
-	       if(clk_en && j) // IDLE
+	       if(clk_en && cdr_j) // IDLE
 		 rx_next=TERMINATE;
 	    end
 
@@ -209,7 +156,7 @@ module usb_rx(input              reset, // system reset (low active)
        nrzi<='0;
      else if(clk_en)
        begin
-	  nrzi[1]<=j;
+	  nrzi[1]<=cdr_q;
 	  nrzi[2]<=nrzi[1];
        end
 
@@ -232,7 +179,6 @@ module usb_rx(input              reset, // system reset (low active)
 
    /* zero when bit unstuffing */
    always_comb rcv_bit=(clk_en && (d0 || num_ones!='d6));
-
 
    /*
     * RX shift/hold register
