@@ -4,8 +4,8 @@ module tb_usb_rx;
    timeunit 1ns;
    timeprecision 1ps;
 
-   const realtime tusb=1s/1.5e6, // low speed
-		  tclk=tusb/4;
+   const realtime tbit=1s/1.5e6, // low speed
+		  tclk=1s/24.0e6;
    
 
    import types::*;
@@ -63,7 +63,7 @@ module tb_usb_rx;
      end
    
    task nrzi_encode(input x);
-      #tusb if(!x) nrzi=~nrzi;
+      #tbit if(!x) nrzi=~nrzi;
    endtask
 
    task send_bit(input x);
@@ -104,7 +104,7 @@ module tb_usb_rx;
    endtask
 
    task eop();
-      #tusb d=SE0;
-      #(2*tusb) idle();
+      #tbit d=SE0;
+      #(2*tbit) idle();
    endtask
 endmodule
