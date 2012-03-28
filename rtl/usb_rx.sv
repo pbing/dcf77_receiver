@@ -11,36 +11,33 @@ module usb_rx(input              reset,                       // system reset (l
 
    import types::*;
 
-   var d_port_t d_s[1:4]; // [1:2]=sync [2:4]=majority
-   logic        j,k,se0,cdr_q;
+   var d_port_t d_s[1:2],cdr_q;
+   logic        j,k,se0;
 
-   /*
-    * Clock and Data Recovery
-    * low speed : .d(k)
-    * full speed: .d(j)
-    */
-   cdr cdr(.reset(reset),.clk(clk),.d(k),.q(cdr_q),.strobe(clk_en));
 
    /* synchronize to system clock */
    always_ff @(posedge clk)
      if(reset)
-       for(int i=1;i<=4;i++)
-	 d_s[i]<=J; // IDLE
+       begin
+	  d_s[1]<=J; // IDLE
+	  d_s[2]<=J; // IDLE
+       end
      else
        begin
 	  d_s[1]<=d;
-
-	  for(int i=2;i<=4;i++)
-	    d_s[i]<=d_s[i-1];
+	  d_s[2]<=d_s[1];
        end
 
-   /* 2-of-3 majority */
-   always_comb j  =(d_s[2]==J   && d_s[3]==J)   || (d_s[2]==J   && d_s[4]==J)   || (d_s[3]==J   && d_s[4]==J);
-   always_comb k  =(d_s[2]==K   && d_s[3]==K)   || (d_s[2]==K   && d_s[4]==K)   || (d_s[3]==K   && d_s[4]==K);
-   always_comb se0=(d_s[2]==SE0 && d_s[3]==SE0) || (d_s[2]==SE0 && d_s[4]==SE0) || (d_s[3]==SE0 && d_s[4]==SE0);
 
    always_comb line_state=d_s[2];
 
+   /* Clock and Data Recovery */
+   cdr cdr(.reset(reset),.clk(clk),.d(d_s[2]),.q(cdr_q),.strobe(clk_en));
+
+   always_comb j  =(cdr_q==J);
+   always_comb k  =(cdr_q==K);
+   always_comb se0=(cdr_q==SE0);
+   
    /*************************************************************
     * RX FSM
     *
@@ -59,11 +56,6 @@ module usb_rx(input              reset,                       // system reset (l
 
    always_comb
      begin
-	logic cdr_j,cdr_k;
-
-	cdr_j=~cdr_q; // low speed: ~cdr_q, full speed:  cdr_q
-	cdr_k=cdr_q;  // low speed:  cdr_q, full speed: ~cdr_q
-	
 	rx_next=rx_state;
 	active=1'b0;
 	rcv_data=1'b0;
@@ -71,16 +63,22 @@ module usb_rx(input              reset,                       // system reset (l
 
 	unique case(rx_state)
 	  RESET:
-	    if(clk_en && cdr_k) rx_next=SYNC0;
+	    if(clk_en && k) rx_next=SYNC0;
 
 	  SYNC0,SYNC2,SYNC4:
-	    if(clk_en && cdr_j) rx_next=rx_state.next();
+	    if(clk_en)
+	      if(j) rx_next=rx_state.next();
+	      else  rx_next=RESET;
 
 	  SYNC1,SYNC3,SYNC5,SYNC6:
-	    if(clk_en && cdr_k) rx_next=rx_state.next();
+	    if(clk_en)
+	      if(k) rx_next=rx_state.next();
+	      else  rx_next=RESET;
 
 	  SYNC7:
-	    if(clk_en && cdr_k) rx_next=RX_DATA_WAIT0;
+	    if(clk_en)
+	      if(k) rx_next=RX_DATA_WAIT0;
+	      else  rx_next=RESET;
 
 	  RX_DATA_WAIT0,RX_DATA_WAIT1,RX_DATA_WAIT2,RX_DATA_WAIT3,
 	    RX_DATA_WAIT4,RX_DATA_WAIT5,RX_DATA_WAIT6:
@@ -133,7 +131,7 @@ module usb_rx(input              reset,                       // system reset (l
 	  ABORT2:
 	    begin
 	       active=1'b1;
-	       if(clk_en && cdr_j) // IDLE
+	       if(clk_en && j) // IDLE
 		 rx_next=TERMINATE;
 	    end
 
