@@ -1,6 +1,6 @@
 /* Oversampled Hogge clock and data recovery circuit */
 
-module cdr(input        rst,     // system reset
+module cdr(input        reset,   // system reset
 	   input        clk,     // system clock (24 MHz)
 	   input        d,       // data from PHY
 	   output logic q,       // retimed data
@@ -12,7 +12,7 @@ module cdr(input        rst,     // system reset
    logic              up,down; // phase shift direction
 
    always @(posedge clk)
-     if(rst)
+     if(reset)
        begin
 	  d_shift<='0;
 	  phase<=4'd0;
