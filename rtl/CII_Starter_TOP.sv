@@ -19,8 +19,8 @@ module CII_Starter_TOP (/* Clock Input */
                         output logic [6:0]  HEX3,  // Seven Segment Digit 3
 
                         /* LED */
-                        output [7:0]  LEDG,        // LED Green[7:0]
-                        output [9:0]  LEDR,        // LED Red[9:0]
+                        output logic [7:0]  LEDG,  // LED Green[7:0]
+                        output logic [9:0]  LEDR,  // LED Red[9:0]
 
                         /* UART */
                         output        UART_TXD,    // UART Transmitter
@@ -96,12 +96,12 @@ module CII_Starter_TOP (/* Clock Input */
                         inout [35:0]  GPIO_0,      // GPIO Connection 0
                         inout [35:0]  GPIO_1);     // GPIO Connection 1
 
-   import types::bcd_t;
+   import types::*;
 
    /* common signals */
    wire        rst;
    wire        clk;
-   wire clk_en_10ms;
+   wire        clk_en_10ms;
 
    /* DCF77 */
    wire        dcf77_rx;
@@ -112,6 +112,15 @@ module CII_Starter_TOP (/* Clock Input */
    /*wire*/ bcd_t [1:0] year,month,day,hour,minute,second;
    wire [2:0] day_of_week;
 
+   /* USB */
+   /*wire*/   d_port_t usb_d;          // USB port D+;D-
+   wire [7:0] usb_data;                // data to SIE
+   wire       usb_active;              // active between SYNC und EOP
+   wire       usb_valid;               // data valid pulse
+   wire       usb_error;               // error detected
+   /*wire*/   d_port_t usb_line_state; // synchronized D+,D-
+
+   
 
    /* synchronize reset */
    logic [0:1] rst_s;
@@ -121,8 +130,10 @@ module CII_Starter_TOP (/* Clock Input */
    assign rst=rst_s[1];
    assign clk=CLOCK_24[0];
    assign dcf77_rx=GPIO_1[35];
-   assign LEDR[0]=dcf77_error;
-   assign LEDG[0]=dcf77_rx;
+   assign LEDR[1]=dcf77_error;
+   assign LEDR[0]=dcf77_rx;
+
+   assign usb_d=d_port_t'({GPIO_1[34],GPIO_1[32]});
    
    clk_en clk_en(.rst(rst),.clk(clk),.clk_en(clk_en_10ms));
 
@@ -145,6 +156,12 @@ module CII_Starter_TOP (/* Clock Input */
 	       .hour(hour),
 	       .minute(minute),
 	       .second(second));
+
+   usb_rx usb_rx(.reset(rst),.clk(clk),
+		 .d(usb_d),
+		 .data(usb_data),.active(usb_active),
+		 .valid(usb_valid),.error(usb_error),.line_state(usb_line_state));
+
 
    always_comb
      priority case(1'b1)
