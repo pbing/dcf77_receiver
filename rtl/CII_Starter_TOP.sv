@@ -134,6 +134,7 @@ module CII_Starter_TOP (/* Clock Input */
    assign LEDR[0]=dcf77_rx;
 
    assign usb_d=d_port_t'({GPIO_1[34],GPIO_1[32]});
+   assign GPIO_1[26]=(rst_s)?1'b0:1'b1; // 3.3 V at 1.5 kOhm
    
    clk_en clk_en(.rst(rst),.clk(clk),.clk_en(clk_en_10ms));
 
@@ -163,6 +164,10 @@ module CII_Starter_TOP (/* Clock Input */
 		 .valid(usb_valid),.error(usb_error),.line_state(usb_line_state));
 
 
+   usb_controller usb_controller(.reset(rst),.clk(clk),
+				 .data(usb_data),.active(usb_active),
+				 .valid(usb_valid),.error(usb_error),.line_state(usb_line_state));
+				 
    always_comb
      priority case(1'b1)
        SW[0]:

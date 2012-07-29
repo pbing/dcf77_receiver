@@ -1,21 +1,25 @@
-/* USB-2.0 low/full speed sender */
+/* USB low/full speed sender */
 
-module usb_tx(input        reset, // reset from SIE
-	      input 	   clk, // system clock (low speed: 6 MHz, full speed: 48 MHz)
+module usb_tx(input        reset,             // reset
+	      input 	   clk,               // system clock (low speed: 6 MHz, full speed: 48 MHz)
 	      output 	   types::d_port_t d, // USB port D+,D-
-	      input [7:0]  data, // data from SIE
-	      input 	   valid, // rise:SYNC,1:send data,fall:EOP
-	      output logic ready); // data has been send
+	      input [7:0]  data,              // data from SIE
+	      input 	   valid,             // rise:SYNC,1:send data,fall:EOP
+	      output logic ready);            // data has been sent
 
    import types::*;
 
    /* bit/byte clock */
+   logic       stuffing;
    logic [2:0] num_ones;
    logic [1:0] bit_counter; // bit time=4 clocks
    logic [2:0] byte_counter;
+   logic       en_bit_byte_counter;
 
+   always_comb stuffing=(num_ones=='d6);
+   
    always_ff @(posedge clk)
-     if(reset || !valid)
+     if(reset || !en_bit_byte_counter)
        begin
 	  bit_counter<='0;
 	  byte_counter<='0;
@@ -23,7 +27,7 @@ module usb_tx(input        reset, // reset from SIE
      else
        begin
 	  bit_counter<=bit_counter+2'd1;
-	  if(bit_counter=='1 && num_ones!=6)
+	  if(bit_counter=='1 && !stuffing)
 	    byte_counter<=byte_counter+3'd1;
        end
 
@@ -56,35 +60,48 @@ module usb_tx(input        reset, // reset from SIE
 	ready=1'b0;
 	idle=1'b0;
 	eop=1'b0;
+	en_bit_byte_counter=1'b1;
 	tx_next=tx_state;
 
 	case(tx_state)
 	  RESET:
 	    begin
 	       idle=1'b1;
+	       en_bit_byte_counter=1'b0;
 	       if(!reset) tx_next=TX_WAIT;
 	    end
 	  
 	  TX_WAIT:
 	    begin
 	       idle=1'b1;
-	       if(valid) tx_next=SEND_SYNC0;
+	       en_bit_byte_counter=1'b0;
+	       if(valid)
+		 begin
+		    en_bit_byte_counter=1'b1;
+		    tx_next=SEND_SYNC0;
+		 end
 	    end
-	  
-	  SEND_SYNC0,SEND_SYNC1,SEND_SYNC2,SEND_SYNC3,
+
+	  SEND_SYNC0:
+	    if(en_bit)
+	      begin
+		 ready=1'b1;
+		 tx_next=tx_state.next();
+	      end
+
+	  SEND_SYNC1,SEND_SYNC2,SEND_SYNC3,
 	    SEND_SYNC4,SEND_SYNC5,SEND_SYNC6,SEND_SYNC7:
 	      if(en_bit) tx_next=tx_state.next();
 
 	  TX_DATA_LOAD:
 	    begin
-	       ready=1'b1;
-	       if(!valid)
+	       if(valid)
 		 begin
-		    eop=1'b1;
-		    tx_next=SEND_EOP0;
+		    ready=1'b1;
+		    tx_next=TX_DATA_WAIT0;
 		 end
 	       else
-		 tx_next=TX_DATA_WAIT0;
+		 if(en_bit) tx_next=SEND_EOP0;
 	    end
 
 	  TX_DATA_WAIT0,TX_DATA_WAIT1,TX_DATA_WAIT2,TX_DATA_WAIT3,
@@ -92,33 +109,20 @@ module usb_tx(input        reset, // reset from SIE
 	      if(en_bit) tx_next=tx_state.next();
 
 	  TX_DATA_WAIT7:
-	     if(en_bit) tx_next=TX_DATA_LOAD;
+	    if(en_bit) tx_next=TX_DATA_LOAD;
 
-	  SEND_EOP0,SEND_EOP1,SEND_EOP2,SEND_EOP3,
-	    SEND_EOP4,SEND_EOP5,SEND_EOP6:
-	    begin
-	       ready=1'b0;
-	       eop=1'b1;
-	       tx_next=tx_state.next();
-	    end
-	       
-	  SEND_EOP7,SEND_EOP8,SEND_EOP9:
-//	  SEND_EOP[7:9]:
-	    begin
-	       ready=1'b0;
-	       idle=1'b1;
-	       eop=1'b0;
-	       tx_next=tx_state.next();
-	    end
-
-	  SEND_EOP10:
-	    begin
-	       ready=1'b0;
-	       idle=1'b1;
-	       eop=1'b0;
-	       tx_next=TX_WAIT;
-	    end
-
+	  SEND_EOP0:
+	      begin
+		 eop=1'b1;
+		 if(en_bit) tx_next=tx_state.next();
+	      end
+	  
+	  SEND_EOP1:
+	      begin
+		 eop=1'b1;
+		 if(en_bit) tx_next=TX_WAIT;
+	      end
+	  
 	  default tx_next=RESET;
 	endcase
      end
@@ -153,17 +157,15 @@ module usb_tx(input        reset, // reset from SIE
        num_ones<='0;
      else if(en_bit)
        if(tx_shift[0])
-	 if(num_ones=='d6)
-	   begin
-	      num_ones<='0;
-	   end
+	 if(stuffing)
+	   num_ones<='0;
 	 else
-	   begin
-	      num_ones<=num_ones+3'd1;
-	   end
+	   num_ones<=num_ones+3'd1;
+       else
+	 num_ones<='0;
 
-   always_comb tx_bit=(en_bit && num_ones!='d6);
-   always_comb tx_serial=(num_ones!='d6)?tx_shift[0]:1'b0;
+   always_comb tx_bit=(en_bit && !stuffing);
+   always_comb tx_serial=(stuffing)?1'b0:tx_shift[0];
 
    /* NRZI coding */
    logic nrzi;
@@ -183,4 +185,3 @@ module usb_tx(input        reset, // reset from SIE
      else
        d=(nrzi)?K:J;
 endmodule
-

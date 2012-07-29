@@ -1,6 +1,6 @@
-/* USB-2.0 low/full speed receiver */
+/* USB low/full speed receiver */
 
-module usb_rx(input              reset,                       // system reset (low active)
+module usb_rx(input              reset,                       // system reset
 	      input 		 clk,                         // system clock (24 MHz)
 	      input 		 types::d_port_t d,           // USB port D+,D-
 	      output logic [7:0] data,                        // data to SIE

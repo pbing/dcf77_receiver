@@ -46,8 +46,6 @@ module tb_usb_tx;
 
    initial
      begin
-	data=8'hff;
-
 	repeat(3) @(posedge clk);
 	reset=0;
 	

@@ -47,7 +47,9 @@ module cdr(input                  reset,   // system reset
 		   phase<=phase+5'sd1;
 		 else if(dphase>5'sd0)
 		   phase<=phase+5'sd2;
-		 /* skip phase increment when dphase is negative */
+		 else
+		   /* skip phase increment when dphase is negative */
+		   phase<=phase;
 
 		 if(!(up||down))
 		   dphase<=5'sd0;
@@ -60,8 +62,10 @@ module cdr(input                  reset,   // system reset
 
    always_comb
      begin
-	down=(d_shift[1]!=d_shift[2]);
-	up=(d!=d_shift[1]);
+	/* Phase discriminators are using only one bit (d_port_t[0]). */
+	down=(d_shift[1][0]!=d_shift[2][0]);
+	up=(d[0]!=d_shift[1][0]);
+
 	q=d_shift[2];
 	strobe=(phase==4'd12);
      end
