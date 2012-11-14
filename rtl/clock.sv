@@ -1,4 +1,4 @@
-/* Clock */
+/* DCF77-synchronized free-running clock */
 
 module clock(input  rst,    // reset
 	     input  clk,    // clock (24 MHz)
