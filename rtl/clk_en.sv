@@ -9,7 +9,7 @@ module clk_en(input        rst,     // reset
    always_ff @(posedge clk)
      if(rst)
        count_10ms<='0;
-     else if(count_10ms==18'd239999)
+     else if(clk_en)
        count_10ms<='0;
      else
        count_10ms<=count_10ms+18'd1;
