@@ -52,9 +52,9 @@ module dcf77(input               rst,       // reset
 	       counter_pulse<=counter_pulse+5'd1;
 	     else if(rx_d==2'b01) // falling edge
 	       begin
-		  d<=(counter_pulse<'d15)?1'b0:1'b1; // Threshold is 0.15 seconds.
+		  d<=(counter_pulse<5'd15)?1'b0:1'b1; // Threshold is 0.15 seconds.
 		  shift_en<=1'b1;
-		  counter_pulse<='0;
+		  counter_pulse<=5'0;
 	       end
 
 	     /* detect start */
