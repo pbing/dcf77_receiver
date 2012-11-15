@@ -6,17 +6,17 @@ module tb_usb_rx;
 
    const realtime tbit=1s/1.5e6, // low speed
 		  tclk=1s/24.0e6;
-   
+
 
    import types::*;
 
-   bit        reset=1;
-   bit        clk;
-   d_port_t   d,line_state;
-   wire [7:0] data;
-   wire       active,valid,error;
-   bit        nrzi;
-   int        num_ones;
+   bit          reset=1;
+   bit          clk;
+   var d_port_t d,line_state;
+   wire [7:0]   data;
+   wire         active,valid,error;
+   bit          nrzi;
+   int          num_ones;
 
    integer seed;
 
@@ -41,7 +41,8 @@ module tb_usb_rx;
 
    initial forever #(tclk/2) clk=~clk;
 
-   always_comb d=(nrzi)?K:J;
+   always @*
+     d=(nrzi)?K:J;
 
    initial
      begin
@@ -52,7 +53,7 @@ module tb_usb_rx;
 	pid(DATA0);
 	repeat(8+2) send_byte($random);
 	eop();
-	
+
 	#0.345us sync();
 	pid(DATA1);
 	repeat(8+2) send_byte($random);
@@ -61,7 +62,7 @@ module tb_usb_rx;
 	repeat(30) @(posedge clk);
 	#100ns $stop;
      end
-   
+
    task nrzi_encode(input x);
       #tbit if(!x) nrzi=~nrzi;
    endtask
