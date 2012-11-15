@@ -20,23 +20,6 @@ module tb_usb_rx;
 
    integer seed;
 
-   /* packets */
-   typedef enum bit [3:0] {/* Token */
-			   OUT=4'b001,
-			   IN=4'b1001,
-			   SOF=4'b0101,
-			   SETUP=4'b1101,
-			   /* Data */
-			   DATA0=4'b0011,
-			   DATA1=4'b1011,
-			   /* Handshake */
-			   ACK=4'b0010,
-			   NACK=4'b1010,
-			   STALL=4'b1110,
-			   /* SPECIAL */
-			   PRE_ERR=4'b1100
-			   } pid_t;
-
    usb_rx dut(.*);
 
    initial forever #(tclk/2) clk=~clk;
