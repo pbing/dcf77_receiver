@@ -22,23 +22,6 @@ module tb_usb_tx_rx;
    wire          rx_active,rx_valid,rx_error;
    wire d_port_t rx_line_state;
    
-   /* packets */
-   typedef enum bit [3:0] {/* Token */
-			   OUT=4'b001,
-			   IN=4'b1001,
-			   SOF=4'b0101,
-			   SETUP=4'b1101,
-			   /* Data */
-			   DATA0=4'b0011,
-			   DATA1=4'b1011,
-			   /* Handshake */
-			   ACK=4'b0010,
-			   NACK=4'b1010,
-			   STALL=4'b1110,
-			   /* SPECIAL */
-			   PRE_ERR=4'b1100
-			   } pid_t;
-
    usb_tx usb_tx(.*,.data(tx_data),.valid(tx_valid),.ready(tx_ready));
    
    usb_rx usb_rx(.*,.data(rx_data),.active(rx_active),.valid(rx_valid),.error(rx_error),.line_state(rx_line_state));
