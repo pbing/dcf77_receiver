@@ -23,7 +23,7 @@ module cdr(input                  reset,   // system reset
        end
      else
        begin
-	  unique case(1'b1)
+	  priority case(1'b1)
 	    down  : dphase<=dphase-5'sd1;
 	    up    : dphase<=dphase+5'sd1;
 	    default if(phase==4'd13) dphase<=5'sd0;
