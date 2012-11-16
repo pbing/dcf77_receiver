@@ -12,20 +12,24 @@ module tb_usb_rx;
 
    bit          reset=1;
    bit          clk;
-   var d_port_t d,line_state;
+   wire         clk_en;
+   var d_port_t d,rxd,line_state;
    wire [7:0]   data;
    wire         active,valid,error;
+
    bit          nrzi;
    int          num_ones;
+   integer      seed;
 
-   integer seed;
-
+   cdr    cdr(.*,.q(rxd),.strobe(clk_en));
    usb_rx dut(.*);
 
    initial forever #(tclk/2) clk=~clk;
 
+/* -----\/----- EXCLUDED -----\/-----
    always @*
      d=(nrzi)?K:J;
+ -----/\----- EXCLUDED -----/\----- */
 
    initial
      begin
@@ -48,6 +52,7 @@ module tb_usb_rx;
 
    task nrzi_encode(input x);
       #tbit if(!x) nrzi=~nrzi;
+      d=(nrzi)?K:J;
    endtask
 
    task send_bit(input x);

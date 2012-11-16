@@ -1,42 +1,21 @@
 /* USB low/full speed receiver */
 
-module usb_rx(input              reset,                       // system reset
-	      input 		 clk,                         // system clock (24 MHz)
-	      input 		 types::d_port_t d,           // USB port D+,D-
-	      output logic [7:0] data,                        // data to SIE
-	      output logic 	 active,                      // active between SYNC und EOP
-	      output logic 	 valid,                       // data valid pulse
-	      output logic 	 error,                       // error detected
-	      output 		 types::d_port_t line_state); // synchronized D+,D-
+module usb_rx(input                  reset,  // system reset
+	      input 		     clk,    // system clock (24 MHz)
+	      input                  clk_en, // clock enable	      
+	      input  types::d_port_t rxd,    // data from CDR
+	      output logic [7:0]     data,   // data to SIE
+	      output logic 	     active, // active between SYNC und EOP
+	      output logic 	     valid,  // data valid pulse
+	      output logic 	     error); // error detected
 
    import types::*;
 
-   var d_port_t d_s[1:2],cdr_q;
-   logic        j,k,se0;
+   logic j,k,se0;
 
-
-   /* synchronize to system clock */
-   always_ff @(posedge clk)
-     if(reset)
-       begin
-	  d_s[1]<=J; // IDLE
-	  d_s[2]<=J; // IDLE
-       end
-     else
-       begin
-	  d_s[1]<=d;
-	  d_s[2]<=d_s[1];
-       end
-
-
-   always_comb line_state=d_s[2];
-
-   /* Clock and Data Recovery */
-   cdr cdr(.reset(reset),.clk(clk),.d(d_s[2]),.q(cdr_q),.strobe(clk_en));
-
-   always_comb j  =(cdr_q==J);
-   always_comb k  =(cdr_q==K);
-   always_comb se0=(cdr_q==SE0);
+   always_comb j  =(rxd==J);
+   always_comb k  =(rxd==K);
+   always_comb se0=(rxd==SE0);
    
    /*************************************************************
     * RX FSM
@@ -154,7 +133,7 @@ module usb_rx(input              reset,                       // system reset
        nrzi<='0;
      else if(clk_en)
        begin
-	  nrzi[1]<=cdr_q;
+	  nrzi[1]<=rxd[0]; // use only one bit
 	  nrzi[2]<=nrzi[1];
        end
 
