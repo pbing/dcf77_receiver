@@ -2,14 +2,16 @@ module tb_cdr;
    timeunit 1ns;
    timeprecision 1ps;
 
+   import types::*;
+
    const realtime tclk=1s/24.0e6,
 		  tbit=1s/1.5e6;
 
-   bit rst=1;
-   bit clk;
-   bit d;
-   wire q;
-   wire strobe;
+   bit          reset=1;
+   bit          clk;
+   var d_port_t d;
+   d_port_t     q;
+   wire         strobe;
 
    cdr cdr(.*);
 
@@ -17,18 +19,21 @@ module tb_cdr;
 
    initial
      begin
-	rst<=#(2*tclk) 1'b0;
-	d=0;
+	reset<=#(2*tclk) 1'b0;
+	d=J;
 
-	//#0.94us; // phase<0
-	//#1.23us; // phase=0
-	#1.60us; // phase>0
+	if($test$plusargs("neg_phase"))
+	  #0.94us $display("phase<0");
+	else if($test$plusargs("pos_phase"))
+	  #1.60us $display("phase>0");
+	else
+	  #1.23us $display("phase=0");
 
 	/* SYNC */
-	repeat(7) #tbit d=~d;
+	repeat(7) #tbit d=(d==J)?K:J;
 	#(2*tbit);
 
-	repeat(64) #tbit d=$random;
+	repeat(64) #tbit d=({$random}%2)?K:J;
 
 	#100ns $stop;
      end
