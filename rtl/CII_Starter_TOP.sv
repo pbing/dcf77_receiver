@@ -109,18 +109,20 @@ module CII_Starter_TOP (/* Clock Input */
    wire        dcf77_error,dcf77_sync;
 
    /* Clock */
-   /*wire*/ bcd_t [1:0] year,month,day,hour,minute,second;
-   wire [2:0] day_of_week;
+   bcd_t [1:0] year,month,day,hour,minute,second;
+   wire [2:0]  day_of_week;
 
    /* USB */
-   /*wire*/   d_port_t usb_d;          // USB port D+;D-
-   wire [7:0] usb_data;                // data to SIE
-   wire       usb_active;              // active between SYNC und EOP
-   wire       usb_valid;               // data valid pulse
-   wire       usb_error;               // error detected
-   /*wire*/   d_port_t usb_line_state; // synchronized D+,D-
+   d_port_t   usb_d;          // USB port D+;D-
+   wire [7:0] usb_data;       // data to SIE
+   wire       usb_active;     // active between SYNC und EOP
+   wire       usb_valid;      // data valid pulse
+   wire       usb_error;      // error detected
+   d_port_t   usb_line_state; // synchronized D+,D-
+   wire       usb_rx_clk_en;  // usb_rx clock enable
+   d_port_t   usb_rxd;        // synchronized D+,D-
 
-   
+
 
    /* synchronize reset */
    logic [0:1] rst_s;
@@ -135,7 +137,7 @@ module CII_Starter_TOP (/* Clock Input */
 
    assign usb_d=d_port_t'({GPIO_1[34],GPIO_1[32]});
    assign GPIO_1[26]=(rst_s)?1'b0:1'b1; // 3.3 V at 1.5 kOhm
-   
+
    clk_en clk_en(.rst(rst),.clk(clk),.clk_en(clk_en_10ms));
 
    dcf77 dcf77(.rst(rst),.clk(clk),.clk_en(clk_en_10ms),
@@ -158,16 +160,20 @@ module CII_Starter_TOP (/* Clock Input */
 	       .minute(minute),
 	       .second(second));
 
-   usb_rx usb_rx(.reset(rst),.clk(clk),
-		 .d(usb_d),
+   cdr cdr(.reset(reset),.clk(clk),
+	   .d(usb_d),.q(usb_rxd),
+ 	   .line_state(usb_line_state),.strobe(usb_rx_clk_en));
+
+   usb_rx usb_rx(.reset(rst),.clk(clk),.clk_en(usb_rx_clk_en),
+		 .rxd(usb_rxd),
 		 .data(usb_data),.active(usb_active),
-		 .valid(usb_valid),.error(usb_error),.line_state(usb_line_state));
+		 .valid(usb_valid),.error(usb_error));
 
 
    usb_controller usb_controller(.reset(rst),.clk(clk),
 				 .data(usb_data),.active(usb_active),
 				 .valid(usb_valid),.error(usb_error),.line_state(usb_line_state));
-				 
+
    always_comb
      priority case(1'b1)
        SW[0]:
