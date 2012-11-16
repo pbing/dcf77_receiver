@@ -7,7 +7,6 @@ module tb_usb_rx;
    const realtime tbit=1s/1.5e6, // low speed
 		  tclk=1s/24.0e6;
 
-
    import types::*;
 
    bit          reset=1;
@@ -25,11 +24,6 @@ module tb_usb_rx;
    usb_rx dut(.*);
 
    initial forever #(tclk/2) clk=~clk;
-
-/* -----\/----- EXCLUDED -----\/-----
-   always @*
-     d=(nrzi)?K:J;
- -----/\----- EXCLUDED -----/\----- */
 
    initial
      begin
