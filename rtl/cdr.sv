@@ -1,4 +1,6 @@
-/* Oversampled Hogge clock and data recovery circuit */
+/* Oversampled Hogge clock and data recovery circuit 
+ * for USB low speed reveiver (1.5 MHz). 
+ */
 
 module cdr(input                  reset,   // system reset
 	   input                  clk,     // system clock (24 MHz)
