@@ -7,7 +7,7 @@ module cdr(input                  reset,   // system reset
 	   output logic           strobe); // data strobe
 
    import types::*;
-   
+
    logic [3:0]        phase;        // phase (24 MHz/1.5 MHz=16)
    logic signed [4:0] dphase;       // delta phase
    var d_port_t       d_shift[1:2]; // shifted data
@@ -18,15 +18,16 @@ module cdr(input                  reset,   // system reset
        begin
 	  d_shift[1]<=J;
 	  d_shift[2]<=J;
-	  phase<=4'd0;
-	  dphase<=5'sd0;
+	  phase     <=4'd0;
+	  dphase    <=5'sd0;
        end
      else
        begin
-	  if(down)
-	    dphase<=dphase-5'sd1;
-	  else if(up)
-	    dphase<=dphase+5'sd1;
+	  unique case(1'b1)
+	    down  : dphase<=dphase-5'sd1;
+	    up    : dphase<=dphase+5'sd1;
+	    default if(phase==4'd13) dphase<=5'sd0;
+	  endcase
 
 	  unique case(phase)
 	    4'd4:
@@ -42,18 +43,13 @@ module cdr(input                  reset,   // system reset
 	      end
 
 	    4'd13:
-	      begin
-		 if(dphase==5'sd0)
-		   phase<=phase+5'sd1;
-		 else if(dphase>5'sd0)
-		   phase<=phase+5'sd2;
-		 else
-		   /* skip phase increment when dphase is negative */
-		   phase<=phase;
-
-		 if(!(up||down))
-		   dphase<=5'sd0;
-	      end
+	      if(dphase==5'sd0)
+		phase<=phase+5'sd1;
+	      else if(dphase>5'sd0)
+		phase<=phase+5'sd2;
+	      else
+		/* skip phase increment when dphase is negative */
+		phase<=phase;
 
 	    default
 	      phase<=phase+5'sd1;
