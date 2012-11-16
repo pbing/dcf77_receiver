@@ -6,24 +6,24 @@ module tb_usb_tx_rx;
 
    const realtime tusb=1s/1.5e6, // low speed
 		  tclk=tusb/4;
-   
+
 
    import types::*;
 
-   bit           reset=1;
-   bit           clk;
-   wire d_port_t d;
+   bit         reset=1;
+   bit         clk;
+   d_port_t    d;
 
-   logic [7:0]   tx_data;
-   bit           tx_valid;
-   wire          tx_ready;
+   logic [7:0] tx_data;
+   bit         tx_valid;
+   wire        tx_ready;
 
-   wire [7:0]    rx_data;
-   wire          rx_active,rx_valid,rx_error;
-   wire d_port_t rx_line_state;
-   
+   wire [7:0]  rx_data;
+   wire        rx_active,rx_valid,rx_error;
+   d_port_t    rx_line_state;
+
    usb_tx usb_tx(.*,.data(tx_data),.valid(tx_valid),.ready(tx_ready));
-   
+
    usb_rx usb_rx(.*,.data(rx_data),.active(rx_active),.valid(rx_valid),.error(rx_error),.line_state(rx_line_state));
 
    initial forever #(tclk/2) clk=~clk;
@@ -39,7 +39,7 @@ module tb_usb_tx_rx;
 	do @(posedge clk); while(!tx_ready);
 	tx_data='z;
 	tx_valid=0;
-	
+
 	repeat(100) @(posedge clk);
 	#100ns $stop;
      end
