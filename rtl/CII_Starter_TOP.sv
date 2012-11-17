@@ -99,18 +99,16 @@ module CII_Starter_TOP (/* Clock Input */
    import types::*;
 
    /* common signals */
-   wire        rst;
-   wire        clk;
-   wire        clk_en_10ms;
+   wire rst;
+   wire clk;
 
-   /* DCF77 */
-   wire        dcf77_rx;
-   wire [58:0] dcf77_data;
-   wire        dcf77_error,dcf77_sync;
-
-   /* Clock */
-   bcd_t [1:0] year,month,day,hour,minute,second;
-   wire [2:0]  day_of_week;
+   /* DCF77 receiver and clock */
+   wire         clk_en_10ms;
+   wire         dcf77_rx;
+   wire  [58:0] dcf77_data;
+   wire         dcf77_error,dcf77_sync;
+   bcd_t [1:0]  year,month,day,hour,minute,second;
+   wire  [2:0]  day_of_week;
 
    /* USB */
    d_port_t   usb_d;          // USB port D+;D-
@@ -122,21 +120,28 @@ module CII_Starter_TOP (/* Clock Input */
    wire       usb_rx_clk_en;  // usb_rx clock enable
    d_port_t   usb_rxd;        // synchronized D+,D-
 
-
-
    /* synchronize reset */
    logic [0:1] rst_s;
    always_ff @(posedge clk)
      rst_s<={~KEY[0],rst_s[0]};
 
-   assign rst=rst_s[1];
-   assign clk=CLOCK_24[0];
-   assign dcf77_rx=GPIO_1[35];
-   assign LEDR[1]=dcf77_error;
-   assign LEDR[0]=dcf77_rx;
+   /* I/O assignments */
+   assign rst       =rst_s[1];
+   assign clk       =CLOCK_24[0];
 
-   assign usb_d=d_port_t'({GPIO_1[34],GPIO_1[32]});
-   assign GPIO_1[26]=(rst_s)?1'b0:1'b1; // 3.3 V at 1.5 kOhm
+   assign dcf77_rx  =GPIO_1[35];
+   assign LEDR[1]   =dcf77_error;
+   assign LEDR[0]   =dcf77_rx;
+
+   assign usb_d     =d_port_t'({GPIO_1[34],GPIO_1[32]});
+   assign GPIO_1[26]=(rst_s)?1'b0:1'b1;                  // 3.3 V at 1.5 kOhm for USB low-speed detection
+
+   /********************************************************************************
+    * DCF77 receiver and clock
+    ********************************************************************************/
+
+   wire clock_clk_en     =clk_en_10ms | SW[8]; // SW[8] 0:normal speed, 1:extended speed
+   wire clock_dscf77_sync=dcf77_sync  & SW[9]; // SW[9] 0:free running  1:sync with DCF77
 
    clk_en clk_en(.rst(rst),.clk(clk),.clk_en(clk_en_10ms));
 
@@ -144,8 +149,8 @@ module CII_Starter_TOP (/* Clock Input */
 	       .rx(dcf77_rx),.data_hold(dcf77_data),
 	       .error(dcf77_error),.sync(dcf77_sync));
 
-   clock clock(.rst(rst),.clk(clk),.clk_en(clk_en_10ms|SW[8]), // SW[8] 0:normal speed, 1:extended speed
-	       .dcf77_sync(dcf77_sync&SW[9]),                  // SW[9] 0:free running  1:sync with DCF77
+   clock clock(.rst(rst),.clk(clk),.clk_en(clock_clk_en),
+	       .dcf77_sync(clock_dscf77_sync),
 	       .dcf77_year(dcf77_data[57:50]),
 	       .dcf77_month({3'b0,dcf77_data[49:45]}),
 	       .dcf77_day({2'b0,dcf77_data[41:36]}),
@@ -160,20 +165,7 @@ module CII_Starter_TOP (/* Clock Input */
 	       .minute(minute),
 	       .second(second));
 
-   cdr cdr(.reset(reset),.clk(clk),
-	   .d(usb_d),.q(usb_rxd),
- 	   .line_state(usb_line_state),.strobe(usb_rx_clk_en));
-
-   usb_rx usb_rx(.reset(rst),.clk(clk),.clk_en(usb_rx_clk_en),
-		 .rxd(usb_rxd),
-		 .data(usb_data),.active(usb_active),
-		 .valid(usb_valid),.error(usb_error));
-
-
-   usb_controller usb_controller(.reset(rst),.clk(clk),
-				 .data(usb_data),.active(usb_active),
-				 .valid(usb_valid),.error(usb_error),.line_state(usb_line_state));
-
+   /* Switch control for 7-segment display */
    always_comb
      priority case(1'b1)
        SW[0]:
@@ -208,6 +200,22 @@ module CII_Starter_TOP (/* Clock Input */
 	 end
      endcase
 
+   /********************************************************************************
+    * USB Interface
+    ********************************************************************************/
+   cdr cdr(.reset(reset),.clk(clk),
+	   .d(usb_d),.q(usb_rxd),
+ 	   .line_state(usb_line_state),.strobe(usb_rx_clk_en));
+
+   usb_rx usb_rx(.reset(rst),.clk(clk),.clk_en(usb_rx_clk_en),
+		 .rxd(usb_rxd),
+		 .data(usb_data),.active(usb_active),
+		 .valid(usb_valid),.error(usb_error));
+
+
+   usb_controller usb_controller(.reset(rst),.clk(clk),
+				 .data(usb_data),.active(usb_active),
+				 .valid(usb_valid),.error(usb_error),.line_state(usb_line_state));
 
    /********************************************************************************
     * Functions
