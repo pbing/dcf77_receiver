@@ -4,7 +4,7 @@ module usb_rx
   import types::*;
    (input              reset,  // system reset
     input              clk,    // system clock (24 MHz)
-    input              clk_en, // clock enable	      
+    input              clk_en, // clock enable
     input  d_port_t    rxd,    // data from CDR
     output logic [7:0] data,   // data to SIE
     output logic       active, // active between SYNC und EOP
@@ -16,7 +16,7 @@ module usb_rx
    always_comb j  =(rxd==J);
    always_comb k  =(rxd==K);
    always_comb se0=(rxd==SE0);
-   
+
    /*************************************************************
     * RX FSM
     *
@@ -30,7 +30,7 @@ module usb_rx
    always_ff @(posedge clk)
      if(reset)
        rx_state<=RESET;
-     else
+     else if(clk_en)
        rx_state<=rx_next;
 
    always_comb
@@ -42,22 +42,19 @@ module usb_rx
 
 	unique case(rx_state)
 	  RESET:
-	    if(clk_en && k) rx_next=SYNC0;
+	    if(k) rx_next=SYNC0;
 
 	  SYNC0,SYNC2,SYNC4:
-	    if(clk_en)
-	      if(j) rx_next=rx_state.next();
-	      else  rx_next=RESET;
+	    if(j) rx_next=rx_state.next();
+	    else  rx_next=RESET;
 
 	  SYNC1,SYNC3,SYNC5,SYNC6:
-	    if(clk_en)
-	      if(k) rx_next=rx_state.next();
-	      else  rx_next=RESET;
+	    if(k) rx_next=rx_state.next();
+	    else  rx_next=RESET;
 
 	  SYNC7:
-	    if(clk_en)
-	      if(k) rx_next=RX_DATA_WAIT0;
-	      else  rx_next=RESET;
+	    if(k) rx_next=RX_DATA_WAIT0;
+	    else  rx_next=RESET;
 
 	  RX_DATA_WAIT0,RX_DATA_WAIT1,RX_DATA_WAIT2,RX_DATA_WAIT3,
 	    RX_DATA_WAIT4,RX_DATA_WAIT5,RX_DATA_WAIT6:
@@ -69,7 +66,7 @@ module usb_rx
 	  RX_DATA_WAIT7:
 	    begin
 	       active=1'b1;
-	       if(clk_en && se0)
+	       if(se0)
 		 rx_next=STRIP_EOP0;
 	       else if(rcv_bit)
 		 rx_next=RX_DATA;
@@ -86,7 +83,7 @@ module usb_rx
 	    begin
  	       active=1'b1;
 	       rcv_data=1'b1;
-	       if(clk_en) rx_next=STRIP_EOP1;
+	       rx_next=STRIP_EOP1;
 	    end
 
 	  STRIP_EOP1:
@@ -110,7 +107,7 @@ module usb_rx
 	  ABORT2:
 	    begin
 	       active=1'b1;
-	       if(clk_en && j) // IDLE
+	       if(j) // IDLE
 		 rx_next=TERMINATE;
 	    end
 
@@ -155,30 +152,32 @@ module usb_rx
 	 num_ones<='d0;
 
    /* zero when bit unstuffing */
-   always_comb rcv_bit=(clk_en && (d0 || num_ones!='d6));
+   always_comb rcv_bit=(d0 || num_ones!='d6);
 
-   /*
-    * RX shift/hold register
-    * valid signal
-    */
-   logic [7:0] rx_shift;
+   /* RX shift/hold register */
+   always_ff @(posedge clk)
+     begin:rx_shift_hold
+	logic [7:0] rx_shift;
 
+	if(reset)
+	  begin
+	     rx_shift<='0;
+	     data    <='0;
+	  end
+	else if(clk_en)
+	  begin
+	     /* RX shift register */
+	     if(rcv_bit) rx_shift<={d0,rx_shift[7-:7]};
+
+	     /* RX hold register */
+	     if(rcv_data) data<=rx_shift;
+	  end
+     end:rx_shift_hold
+
+   /* valid signal */
    always_ff @(posedge clk)
      if(reset)
-       begin
-	  rx_shift<='0;
-	  data<='0;
-	  valid<='0;
-       end
+       valid<=1'b0;
      else
-       begin
-	  /* RX shift register */
-	  if(rcv_bit) rx_shift<={d0,rx_shift[7-:7]};
-
-	  /* RX hold register */
-	  if(clk_en & rcv_data) data<=rx_shift;
-
-	  /* valid signal */
-	  valid<=clk_en & rcv_data;
-       end
+       valid<=rcv_data & clk_en;
 endmodule
