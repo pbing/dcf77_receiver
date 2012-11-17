@@ -3,7 +3,7 @@
  */
 
 module cdr
-  import types::d_port:t;
+  import types::*;
    (input           reset,          // system reset
     input           clk,            // system clock (24 MHz)
     input  d_port_t d,              // data from PHY
