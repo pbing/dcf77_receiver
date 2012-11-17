@@ -2,14 +2,14 @@
  * for USB low speed reveiver (1.5 MHz). 
  */
 
-module cdr(input                  reset,      // system reset
-	   input                  clk,        // system clock (24 MHz)
-	   input  types::d_port_t d,          // data from PHY
-	   output types::d_port_t q,          // retimed data
- 	   output types::d_port_t line_state, // synchronized D+,D-
-	   output logic           strobe);    // data strobe
-
-   import types::*;
+module cdr
+  import types::d_port:t;
+   (input           reset,          // system reset
+    input           clk,            // system clock (24 MHz)
+    input  d_port_t d,              // data from PHY
+    output d_port_t q,              // retimed data
+    output d_port_t line_state,     // synchronized D+,D-
+    output logic    strobe);        // data strobe
 
    logic [3:0]        phase;        // phase (24 MHz/1.5 MHz=16)
    logic signed [4:0] dphase;       // delta phase

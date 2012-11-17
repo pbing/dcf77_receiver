@@ -1,15 +1,15 @@
 /* USB low/full speed receiver */
 
-module usb_rx(input                  reset,  // system reset
-	      input 		     clk,    // system clock (24 MHz)
-	      input                  clk_en, // clock enable	      
-	      input  types::d_port_t rxd,    // data from CDR
-	      output logic [7:0]     data,   // data to SIE
-	      output logic 	     active, // active between SYNC und EOP
-	      output logic 	     valid,  // data valid pulse
-	      output logic 	     error); // error detected
-
-   import types::*;
+module usb_rx
+  import types::*;
+   (input              reset,  // system reset
+    input              clk,    // system clock (24 MHz)
+    input              clk_en, // clock enable	      
+    input  d_port_t    rxd,    // data from CDR
+    output logic [7:0] data,   // data to SIE
+    output logic       active, // active between SYNC und EOP
+    output logic       valid,  // data valid pulse
+    output logic       error); // error detected
 
    logic j,k,se0;
 

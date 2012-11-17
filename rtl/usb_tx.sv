@@ -1,13 +1,14 @@
 /* USB low/full speed sender */
 
-module usb_tx(input        reset,             // reset
-	      input 	   clk,               // system clock (low speed: 6 MHz, full speed: 48 MHz)
-	      output 	   types::d_port_t d, // USB port D+,D-
-	      input [7:0]  data,              // data from SIE
-	      input 	   valid,             // rise:SYNC,1:send data,fall:EOP
-	      output logic ready);            // data has been sent
-
+module usb_tx
    import types::*;
+   (input        reset,      // reset
+    input        clk,        // system clock (low speed: 6 MHz, full speed: 48 MHz)
+    output       d_port_t d, // USB port D+,D-
+    input [7:0]  data,       // data from SIE
+    input        valid,      // rise:SYNC,1:send data,fall:EOP
+    output logic ready);     // data has been sent
+
 
    /* bit/byte clock */
    logic       stuffing;

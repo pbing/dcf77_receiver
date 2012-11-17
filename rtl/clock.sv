@@ -1,28 +1,28 @@
 /* DCF77-synchronized free-running clock */
 
-module clock(input  rst,    // reset
-	     input  clk,    // clock (24 MHz)
-	     input  clk_en, // clock enable (10 ms)
+module clock
+  import types::bcd_t;
+   (input  rst,    // reset
+    input  clk,    // clock (24 MHz)
+    input  clk_en, // clock enable (10 ms)
 
-	     /* from DCF77 module */
-	     input                     dcf77_sync,
-	     input  types::bcd_t [1:0] dcf77_year,
-	     input  types::bcd_t [1:0] dcf77_month,
-	     input  types::bcd_t [1:0] dcf77_day,
-	     input               [2:0] dcf77_day_of_week,
-	     input  types::bcd_t [1:0] dcf77_hour,
-	     input  types::bcd_t [1:0] dcf77_minute,
+    /* from DCF77 module */
+    input              dcf77_sync,
+    input  bcd_t [1:0] dcf77_year,
+    input  bcd_t [1:0] dcf77_month,
+    input  bcd_t [1:0] dcf77_day,
+    input        [2:0] dcf77_day_of_week,
+    input  bcd_t [1:0] dcf77_hour,
+    input  bcd_t [1:0] dcf77_minute,
 
-	     /* synchronized free running clock */
-	     output types::bcd_t [1:0] year,
-	     output types::bcd_t [1:0] month,
-	     output types::bcd_t [1:0] day,
-	     output logic        [2:0] day_of_week,
-	     output types::bcd_t [1:0] hour,
-	     output types::bcd_t [1:0] minute,
-	     output types::bcd_t [1:0] second);
-
-   import types::bcd_t;
+    /* synchronized free running clock */
+    output bcd_t [1:0] year,
+    output bcd_t [1:0] month,
+    output bcd_t [1:0] day,
+    output logic [2:0] day_of_week,
+    output bcd_t [1:0] hour,
+    output bcd_t [1:0] minute,
+    output bcd_t [1:0] second);
 
    always_ff @(posedge clk)
      begin:main
@@ -222,5 +222,5 @@ module clock(input  rst,    // reset
 		    end:count_seconds
 	       end
 	  end
-     end
+     end:main
 endmodule
