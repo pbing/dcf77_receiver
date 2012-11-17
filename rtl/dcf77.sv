@@ -81,7 +81,7 @@ module dcf77(input               rst,       // reset
 		  data_valid<=valid;
 	       end
 	  end
-     end
+     end:main
 
    /* synchronization to external modules */
    always_comb sync=data_valid & clk_en;
@@ -114,5 +114,5 @@ module dcf77(input               rst,       // reset
 	       minutes && hours &&
 	       day_of_month && day_of_week &&
 	       month && year);
-     end
+     end:validy_check
 endmodule
