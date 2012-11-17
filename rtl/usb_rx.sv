@@ -66,6 +66,7 @@ module usb_rx
 	  RX_DATA_WAIT7:
 	    begin
 	       active=1'b1;
+	       rcv_data=1'b1;
 	       if(se0)
 		 rx_next=STRIP_EOP0;
 	       else if(rcv_bit)
@@ -75,14 +76,12 @@ module usb_rx
 	  RX_DATA:
 	    begin
 	       active=1'b1;
-	       rcv_data=1'b1;
 	       if(rcv_bit) rx_next=RX_DATA_WAIT1;
 	    end
 
 	  STRIP_EOP0:
 	    begin
  	       active=1'b1;
-	       rcv_data=1'b1;
 	       rx_next=STRIP_EOP1;
 	    end
 
@@ -96,7 +95,6 @@ module usb_rx
 	  ERROR:
 	    begin
 	       active=1'b1;
-	       rcv_data=1'b1;
 	       error=1'b1;
 	       rx_next=ABORT1; // choose ABORT1 or ABORT2
 	    end
@@ -122,19 +120,15 @@ module usb_rx
    /*************************************************************
     * NRZI decoding
     *************************************************************/
-   logic d0;
-   logic [1:2] nrzi;
+   logic nrzi,d0;
 
    always_ff @(posedge clk)
      if(reset)
-       nrzi<='0;
+       nrzi<=1'b0;
      else if(clk_en)
-       begin
-	  nrzi[1]<=rxd[0]; // use only one bit
-	  nrzi[2]<=nrzi[1];
-       end
+       nrzi<=j;
 
-   always_comb d0<=~^nrzi;
+   always_comb d0<=j ~^ nrzi;
 
    /* bit unstuffing */
    logic [2:0] num_ones;
