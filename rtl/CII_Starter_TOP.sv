@@ -203,7 +203,8 @@ module CII_Starter_TOP (/* Clock Input */
    /********************************************************************************
     * USB Interface
     ********************************************************************************/
-   cdr cdr(.reset(reset),.clk(clk),
+
+   cdr cdr(.reset(rst),.clk(clk),
 	   .d(usb_d),.q(usb_rxd),
  	   .line_state(usb_line_state),.strobe(usb_rx_clk_en));
 
@@ -211,7 +212,6 @@ module CII_Starter_TOP (/* Clock Input */
 		 .rxd(usb_rxd),
 		 .data(usb_data),.active(usb_active),
 		 .valid(usb_valid),.error(usb_error));
-
 
    usb_controller usb_controller(.reset(rst),.clk(clk),
 				 .data(usb_data),.active(usb_active),
