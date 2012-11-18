@@ -12,7 +12,7 @@ module tb_usb_rx;
    bit          reset=1;
    bit          clk;
    wire         clk_en;
-   var d_port_t d,rxd,line_state;
+   var d_port_t d,rx_d,line_state;
    wire [7:0]   data;
    wire         active,valid,error;
 
@@ -20,8 +20,8 @@ module tb_usb_rx;
    int          num_ones;
    integer      seed;
 
-   cdr    cdr(.*,.q(rxd),.strobe(clk_en));
-   usb_rx dut(.*);
+   cdr    cdr(.*,.q(rx_d),.strobe(clk_en));
+   usb_rx dut(.*,.d(rx_d));
 
    initial forever #(tclk/2) clk=~clk;
 

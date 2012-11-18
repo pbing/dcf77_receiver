@@ -1,4 +1,4 @@
-/* Testbench USB-TX/RX 
+/* Testbench USB-TX/RX
  * RX is connected with TX.
  */
 
@@ -20,15 +20,15 @@ module tb_usb_tx_rx;
    logic [7:0] tx_data;
    bit         tx_valid;
    wire        tx_ready;
-	       
+
    wire        rx_clk_en;
-   d_port_t    rxd;
+   d_port_t    rx_d;
    wire [7:0]  rx_data;
    wire        rx_active,rx_valid,rx_error;
 
-   cdr    cdr(.*,.q(rxd),.strobe(rx_clk_en));
-   
-   usb_rx usb_rx(.*,.clk_en(rx_clk_en),.data(rx_data),.active(rx_active),.valid(rx_valid),.error(rx_error));
+   cdr    cdr(.*,.q(rx_d),.strobe(rx_clk_en));
+
+   usb_rx usb_rx(.*,.clk_en(rx_clk_en),.d(rx_d),.data(rx_data),.active(rx_active),.valid(rx_valid),.error(rx_error));
 
    usb_tx usb_tx(.*,.data(tx_data),.valid(tx_valid),.ready(tx_ready));
 
