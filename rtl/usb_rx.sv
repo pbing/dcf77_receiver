@@ -135,18 +135,18 @@ module usb_rx
 
    always_ff @(posedge clk)
      if(reset)
-       num_ones<='0;
+       num_ones<=3'd0;
      else if(clk_en)
        if(d0)
-	 if(num_ones=='d6)
-	   num_ones<='d0;
+	 if(num_ones==3'd6)
+	   num_ones<=3'd0;
 	 else
 	   num_ones<=num_ones+3'd1;
        else
-	 num_ones<='d0;
+	 num_ones<=3'd0;
 
    /* zero when bit unstuffing */
-   always_comb rcv_bit=(d0 || num_ones!='d6);
+   always_comb rcv_bit=(d0 || num_ones!=3'd6);
 
    /* RX shift/hold register */
    always_ff @(posedge clk)
@@ -155,8 +155,8 @@ module usb_rx
 
 	if(reset)
 	  begin
-	     rx_shift<='0;
-	     data    <='0;
+	     rx_shift<=8'h0;
+	     data    <=8'h0;
 	  end
 	else if(clk_en)
 	  begin
