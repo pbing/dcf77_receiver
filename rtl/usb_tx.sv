@@ -74,8 +74,7 @@ module usb_tx
 	    end
 
 	  TX_DATA_WAIT:
-	    if(ready)
-	      tx_next=TX_DATA_LOAD;
+	    if(ready) tx_next=TX_DATA_LOAD;
 
 	  SEND_EOP:
 	    if(en_bit && byte_counter==3'd3) tx_next=TX_WAIT;
@@ -98,11 +97,12 @@ module usb_tx
        tx_shift<=8'b0;
      else
        if(valid && tx_state==TX_WAIT)
-	 tx_shift<=8'b10000000; // SYNC pattern
-       else if(en_bit && tx_state==TX_DATA_LOAD && !stuffing)
-	 tx_shift<=tx_load;
+	 tx_shift<=8'b10000000;             // SYNC pattern
        else if(en_bit && !stuffing)
-	 tx_shift<={1'bx,tx_shift[7-:7]};
+	 if(tx_state==TX_DATA_LOAD)
+	   tx_shift<=tx_load;               // load
+	 else
+	   tx_shift<={1'bx,tx_shift[7-:7]}; // shift
 
    /* bit stuffing */
    logic tx_serial;
