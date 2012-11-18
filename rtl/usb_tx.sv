@@ -43,7 +43,7 @@ module usb_tx
    always_comb
      begin
         en_bit=(tx_state!=RESET && tx_state!=TX_WAIT && bit_counter==4'd0);
-	ready =(en_bit && byte_counter==3'd7);
+	ready =(en_bit && byte_counter==3'd7 && !stuffing);
      end
 
    /* TX FSM */
@@ -69,7 +69,7 @@ module usb_tx
 
 	  TX_DATA_LOAD:
 	    begin
-	       if(valid && en_bit)              tx_next=TX_DATA_WAIT;
+	       if(valid && en_bit && !stuffing) tx_next=TX_DATA_WAIT;
 	       if(!valid && byte_counter==3'd1) tx_next=SEND_EOP;
 	    end
 
@@ -99,7 +99,7 @@ module usb_tx
      else
        if(valid && tx_state==TX_WAIT)
 	 tx_shift<=8'b10000000; // SYNC pattern
-       else if(en_bit && tx_state==TX_DATA_LOAD)
+       else if(en_bit && tx_state==TX_DATA_LOAD && !stuffing)
 	 tx_shift<=tx_load;
        else if(en_bit && !stuffing)
 	 tx_shift<={1'bx,tx_shift[7-:7]};
