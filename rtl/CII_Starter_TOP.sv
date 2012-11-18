@@ -111,14 +111,19 @@ module CII_Starter_TOP (/* Clock Input */
    wire  [2:0]  day_of_week;
 
    /* USB */
-   d_port_t   usb_d;          // USB port D+;D-
-   wire [7:0] usb_data;       // data to SIE
-   wire       usb_active;     // active between SYNC und EOP
-   wire       usb_valid;      // data valid pulse
-   wire       usb_error;      // error detected
+   d_port_t   usb_d_i;        // USB port D+,D- (input)
+   d_port_t   usb_d_o;        // USB port D+,D- (output)
+   d_port_t   usb_d_en;       // USB port D+,D- (enable)
    d_port_t   usb_line_state; // synchronized D+,D-
-   wire       usb_rx_clk_en;  // usb_rx clock enable
-   d_port_t   usb_rxd;        // synchronized D+,D-
+
+   wire [7:0] usb_tx_data;    // data from SIE
+   wire       usb_tx_valid;   // rise:SYNC,1:send data,fall:EOP
+   wire       usb_tx_ready;   // data has been sent
+
+   wire [7:0] usb_rx_data;    // data to SIE
+   wire       usb_rx_active;  // active between SYNC und EOP
+   wire       usb_rx_valid;   // data valid pulse
+   wire       usb_rx_error;   // error detected
 
    /* synchronize reset */
    logic [0:1] rst_s;
@@ -133,7 +138,9 @@ module CII_Starter_TOP (/* Clock Input */
    assign LEDR[1]   =dcf77_error;
    assign LEDR[0]   =dcf77_rx;
 
-   assign usb_d     =d_port_t'({GPIO_1[34],GPIO_1[32]});
+   assign usb_d_in               =d_port_t'({GPIO_1[34],GPIO_1[32]});
+   assign {GPIO_1[34],GPIO_1[32]}=(usb_d_en)?usb_d_o:2'bz;
+
    assign GPIO_1[26]=(rst_s)?1'b0:1'b1;                  // 3.3 V at 1.5 kOhm for USB low-speed detection
 
    /********************************************************************************
@@ -204,18 +211,17 @@ module CII_Starter_TOP (/* Clock Input */
     * USB Interface
     ********************************************************************************/
 
-   cdr cdr(.reset(rst),.clk(clk),
-	   .d(usb_d),.q(usb_rxd),
- 	   .line_state(usb_line_state),.strobe(usb_rx_clk_en));
-
-   usb_rx usb_rx(.reset(rst),.clk(clk),.clk_en(usb_rx_clk_en),
-		 .rxd(usb_rxd),
-		 .data(usb_data),.active(usb_active),
-		 .valid(usb_valid),.error(usb_error));
+   usb_transceiver usb_transceiver (.reset(rst),
+				    .clk(clk),
+				    .d_i(usb_d_i),.d_o(usb_d_o),.line_state(usb_line_state),
+				    .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
+				    .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
 
    usb_controller usb_controller(.reset(rst),.clk(clk),
-				 .data(usb_data),.active(usb_active),
-				 .valid(usb_valid),.error(usb_error),.line_state(usb_line_state));
+				 .data(usb_rx_data),.active(usb_rx_active),
+				 .valid(usb_rx_valid),.error(usb_rx_error),.line_state(usb_line_state));
+
+   assign usb_d_en=1'b0; // FIXME
 
    /********************************************************************************
     * Functions
