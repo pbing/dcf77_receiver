@@ -5,13 +5,13 @@ module tb_usb_tx;
    timeprecision 1ps;
 
    const realtime tusb=1s/1.5e6, // low speed
-		  tclk=tusb/4;
-
+		  tclk=1s/24.0e6;
 
    import types::*;
 
    bit           reset=1;
    bit           clk;
+   bit           clk_en;
    var d_port_t  d;
    bit [7:0]     data;
    bit           valid;
@@ -30,14 +30,19 @@ module tb_usb_tx;
    initial
      begin
 	repeat(3) @(posedge clk);
-	reset=0;
+	reset=1'b0;
 
 	repeat(10) @(posedge clk);
-	valid=1;
-	repeat(4*8*5) @(posedge clk);
-	valid=0;
+	valid<=1'b1; pid(DATA0);
+	repeat(16*8*30) @(posedge clk);
+	valid=1'b0;
 
-	repeat(30) @(posedge clk);
-	#3us $stop;
+	repeat(16*8) @(posedge clk);
+	$stop;
      end
+
+   task pid(pid_t x);
+      data<={x,~x};
+   endtask
+
 endmodule
