@@ -36,26 +36,26 @@ module cdr
 	    4'd4:
 	      begin
 		 d_shift[1]<=d;
-		 phase<=phase+5'sd1;
+		 phase<=phase+4'sd1;
 	      end
 
 	    4'd12:
 	      begin
 		 d_shift[2]<=d_shift[1];
-		 phase<=phase+5'sd1;
+		 phase<=phase+4'sd1;
 	      end
 
 	    4'd13:
 	      if(dphase==5'sd0)
-		phase<=phase+5'sd1;
+		phase<=phase+4'sd1;
 	      else if(dphase>5'sd0)
-		phase<=phase+5'sd2;
+		phase<=phase+4'sd2;
 	      else
 		/* skip phase increment when dphase is negative */
 		phase<=phase;
 
 	    default
-	      phase<=phase+5'sd1;
+	      phase<=phase+4'sd1;
 	  endcase
        end
 
