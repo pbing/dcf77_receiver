@@ -4,7 +4,8 @@ module usb_tx
   import types::*;
    (input           reset,  // reset
     input           clk,    // system clock (24 MHz)
-    output d_port_t d,      // USB port D+,D-
+    output d_port_t d_o,    // USB port D+,D- (output)
+    output logic    d_en,   // USB port D+,D- (enable)
     input  [7:0]    data,   // data from SIE
     input           valid,  // rise:SYNC,1:send data,fall:EOP
     output logic    ready); // data has been sent
@@ -55,6 +56,7 @@ module usb_tx
 
    always_comb
      begin
+	d_en   =1'b0;
 	tx_next=tx_state;
 
 	case(tx_state)
@@ -65,19 +67,29 @@ module usb_tx
 	    if(valid) tx_next=SEND_SYNC;
 
 	  SEND_SYNC:
-	    if(ready) tx_next=TX_DATA_LOAD;
+	    begin
+	       d_en=1'b1;
+	       if(ready) tx_next=TX_DATA_LOAD;
+	    end
 
 	  TX_DATA_LOAD:
 	    begin
+	       d_en=1'b1;
 	       if(valid && en_bit && !stuffing) tx_next=TX_DATA_WAIT;
 	       if(!valid && byte_counter==3'd1) tx_next=SEND_EOP;
 	    end
 
 	  TX_DATA_WAIT:
-	    if(ready) tx_next=TX_DATA_LOAD;
+	    begin
+	       d_en=1'b1;
+	       if(ready) tx_next=TX_DATA_LOAD;
+	    end
 
 	  SEND_EOP:
-	    if(en_bit && byte_counter==3'd3) tx_next=TX_WAIT;
+	    begin
+	       d_en=1'b1;
+	       if(en_bit && byte_counter==3'd3) tx_next=TX_WAIT;
+	    end
 
 	  default tx_next=RESET;
 	endcase
@@ -137,9 +149,9 @@ module usb_tx
    /* assign D+,D- */
    always_comb
      if(tx_state==SEND_EOP)
-       d=SE0;
+       d_o=SE0;
      else if(tx_state==TX_WAIT)
-       d=J;
+       d_o=J;
      else
-       d=(nrzi)?K:J;
+       d_o=(nrzi)?K:J;
 endmodule

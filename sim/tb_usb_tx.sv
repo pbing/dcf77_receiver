@@ -9,17 +9,19 @@ module tb_usb_tx;
 
    import types::*;
 
-   bit           reset=1;
-   bit           clk;
-   bit           clk_en;
-   var d_port_t  d;
-   bit [7:0]     data;
-   bit           valid;
-   wire          ready;
+   bit       reset=1'b1;
+   bit       clk;
+   d_port_t  d,d_o;
+   wire      d_en;
+   bit [7:0] data;
+   bit       valid;
+   wire      ready;
 
    integer seed;
 
    usb_tx dut(.*);
+
+   assign d=d_port_t'{(d_en)?d_o:2'bz};
 
    initial forever #(tclk/2) clk=~clk;
 

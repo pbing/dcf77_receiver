@@ -113,7 +113,7 @@ module CII_Starter_TOP (/* Clock Input */
    /* USB */
    d_port_t   usb_d_i;        // USB port D+,D- (input)
    d_port_t   usb_d_o;        // USB port D+,D- (output)
-   d_port_t   usb_d_en;       // USB port D+,D- (enable)
+   logic      usb_d_en;       // USB port D+,D- (enable)
    d_port_t   usb_line_state; // synchronized D+,D-
 
    wire [7:0] usb_tx_data;    // data from SIE

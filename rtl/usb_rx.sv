@@ -5,7 +5,7 @@ module usb_rx
    (input              reset,  // system reset
     input              clk,    // system clock (24 MHz)
     input              clk_en, // clock enable
-    input  d_port_t    d,      // data from CDR
+    input  d_port_t    d_i,    // data from CDR
     output logic [7:0] data,   // data to SIE
     output logic       active, // active between SYNC und EOP
     output logic       valid,  // data valid pulse
@@ -13,9 +13,9 @@ module usb_rx
 
    logic j,k,se0;
 
-   always_comb j  =(d==J);
-   always_comb k  =(d==K);
-   always_comb se0=(d==SE0);
+   always_comb j  =(d_i==J);
+   always_comb k  =(d_i==K);
+   always_comb se0=(d_i==SE0);
 
    /*************************************************************
     * RX FSM
