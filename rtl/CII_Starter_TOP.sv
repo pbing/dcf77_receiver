@@ -138,7 +138,7 @@ module CII_Starter_TOP (/* Clock Input */
    assign LEDR[1]   =dcf77_error;
    assign LEDR[0]   =dcf77_rx;
 
-   assign usb_d_in               =d_port_t'({GPIO_1[34],GPIO_1[32]});
+   assign usb_d_i                =d_port_t'({GPIO_1[34],GPIO_1[32]});
    assign {GPIO_1[34],GPIO_1[32]}=(usb_d_en)?usb_d_o:2'bz;
 
    assign GPIO_1[26]=(rst_s)?1'b0:1'b1;                  // 3.3 V at 1.5 kOhm for USB low-speed detection
@@ -213,7 +213,7 @@ module CII_Starter_TOP (/* Clock Input */
 
    usb_transceiver usb_transceiver (.reset(rst),
 				    .clk(clk),
-				    .d_i(usb_d_i),.d_o(usb_d_o),.line_state(usb_line_state),
+				    .d_i(usb_d_i),.d_o(usb_d_o),.d_en(usb_d_en),.line_state(usb_line_state),
 				    .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
 				    .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
 
@@ -221,7 +221,9 @@ module CII_Starter_TOP (/* Clock Input */
 				 .data(usb_rx_data),.active(usb_rx_active),
 				 .valid(usb_rx_valid),.error(usb_rx_error),.line_state(usb_line_state));
 
-   assign usb_d_en=1'b0; // FIXME
+   /* FIXME */
+   assign usb_tx_data =8'h0;  
+   assign usb_tx_valid=1'b0; 
 
    /********************************************************************************
     * Functions
