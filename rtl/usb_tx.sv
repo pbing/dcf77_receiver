@@ -88,7 +88,7 @@ module usb_tx
 	  SEND_EOP:
 	    begin
 	       d_en=1'b1;
-	       if(en_bit && byte_counter==3'd3) tx_next=TX_WAIT;
+	       if(en_bit && byte_counter==3'd4) tx_next=TX_WAIT;
 	    end
 
 	  default tx_next=RESET;
@@ -149,7 +149,13 @@ module usb_tx
    /* assign D+,D- */
    always_comb
      if(tx_state==SEND_EOP)
-       d_o=SE0;
+       /* two bit SE0, one bit J */
+       begin
+	  if(byte_counter<=3'd3)
+	    d_o=SE0;
+	  else
+	    d_o=J;
+       end
      else if(tx_state==TX_WAIT)
        d_o=J;
      else
