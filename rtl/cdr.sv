@@ -23,6 +23,7 @@ module cdr
 	  d_shift[2]<=J;
 	  phase     <=4'd0;
 	  dphase    <=5'sd0;
+	  strobe    <=1'b0;
        end
      else
        begin
