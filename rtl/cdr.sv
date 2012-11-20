@@ -1,5 +1,5 @@
-/* Oversampled Hogge clock and data recovery circuit 
- * for USB low speed reveiver (1.5 MHz). 
+/* Oversampled Hogge clock and data recovery circuit
+ * for USB low speed reveiver (1.5 MHz).
  */
 
 module cdr
@@ -26,6 +26,8 @@ module cdr
        end
      else
        begin
+	  strobe<=1'b0;
+
 	  priority case(1'b1)
 	    down  : dphase<=dphase-5'sd1;
 	    up    : dphase<=dphase+5'sd1;
@@ -36,13 +38,14 @@ module cdr
 	    4'd4:
 	      begin
 		 d_shift[1]<=d;
-		 phase<=phase+4'sd1;
+		 phase     <=phase+4'sd1;
 	      end
 
 	    4'd12:
 	      begin
 		 d_shift[2]<=d_shift[1];
-		 phase<=phase+4'sd1;
+		 phase     <=phase+4'sd1;
+		 strobe    <=1'b1;
 	      end
 
 	    4'd13:
@@ -57,6 +60,7 @@ module cdr
 	    default
 	      phase<=phase+4'sd1;
 	  endcase
+
        end
 
    always_comb
@@ -66,7 +70,6 @@ module cdr
 	up=(d[0]!=d_shift[1][0]);
 
 	q=d_shift[2];
-	strobe=(phase==4'd12);
      end
 
    /************************************************************************

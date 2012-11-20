@@ -53,8 +53,7 @@ module usb_rx
 	    else  rx_next=RESET;
 
 	  SYNC7:
-	    if(k) rx_next=RX_DATA_WAIT0;
-	    else  rx_next=RESET;
+	    rx_next=RX_DATA_WAIT0;
 
 	  RX_DATA_WAIT0,RX_DATA_WAIT1,RX_DATA_WAIT2,RX_DATA_WAIT3,
 	    RX_DATA_WAIT4,RX_DATA_WAIT5,RX_DATA_WAIT6:
