@@ -218,12 +218,9 @@ module CII_Starter_TOP (/* Clock Input */
 				    .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
 
    usb_controller usb_controller(.reset(rst),.clk(clk),
-				 .data(usb_rx_data),.active(usb_rx_active),
-				 .valid(usb_rx_valid),.error(usb_rx_error),.line_state(usb_line_state));
-
-   /* FIXME */
-   assign usb_tx_data =8'h0;  
-   assign usb_tx_valid=1'b0; 
+				 .line_state(usb_line_state),
+				 .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
+				 .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
 
    /********************************************************************************
     * Functions

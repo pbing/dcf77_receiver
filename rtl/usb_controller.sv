@@ -2,17 +2,30 @@
 
 module usb_controller
   import types::*;
-   (input          reset,       // system reset
-    input          clk,         // system clock (24 MHz)
-    input [7:0]    data,        // data to SIE
-    input          active,      // active between SYNC und EOP
-    input          valid,       // data valid pulse
-    input          error,       // error detected
-    input d_port_t line_state); // synchronized D+,D-
+   (input          reset,      // system reset
+    input          clk,        // system clock (24 MHz)
+
+    /* USB Bus */
+    input d_port_t line_state, // synchronized D+,D-
+
+    /* TX */
+    output [7:0]   tx_data,    // data from SIE
+    output         tx_valid,   // rise:SYNC,1:send data,fall:EOP
+    input          tx_ready,   // data has been sent
+
+    /* RX */
+    input  [7:0]   rx_data,    // data to SIE
+    input          rx_active,  // active between SYNC und EOP
+    input          rx_valid,   // data valid pulse
+    input          rx_error);  // error detected
 
    enum logic [31:0] {IDLE,TOKEN[3]} state,next;
 
-   (* noprune *) pid_t       pid;
+   /* FIXME */
+   assign tx_data =8'h0;
+   assign tx_valid=1'b0;
+
+   (* noprune *) var   pid_t pid;
    (* noprune *) logic [6:0] address;
    (* noprune *) logic [3:0] end_point;
    (* noprune *) logic       flag_crc5;
@@ -24,14 +37,14 @@ module usb_controller
 	  end_point<='0;
 	  flag_crc5<='0;
        end
-     else if(valid)
+     else if(rx_valid)
        begin
-	  if(valid_pid(data))
-	    pid<=pid_t'(data[3:0]);
+	  if(valid_pid(rx_data))
+	    pid<=pid_t'(rx_data[3:0]);
 
 	  if(pid==IN)
 	    begin
-	       address<=data[6:0];
+	       address<=rx_data[6:0];
 	    end
        end
 
