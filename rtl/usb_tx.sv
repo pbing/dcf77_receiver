@@ -151,7 +151,7 @@ module usb_tx
      if(tx_state==SEND_EOP)
        /* two bit SE0, one bit J */
        begin
-	  if(byte_counter<=3'd3)
+	  if(byte_counter<3'd3)
 	    d_o=SE0;
 	  else
 	    d_o=J;
