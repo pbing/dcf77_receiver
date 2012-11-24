@@ -21,13 +21,19 @@ module usb_controller
 
     /* Device */
     output pid_t       pid,          // PID
+    output logic       pid_valid,    // PID valid
     output logic [6:0] address,      // device address
     output logic [3:0] end_point,    // end point
-    output logic       token_valid); // token valid
+    output logic       token_valid,  // token valid
+    output logic [7:0] data_o,       // data output
+    output logic       data_valid,   // data output valid
+    output logic       crc16_ok,     // data CRC16
+    input        [7:0] data_i,       // data input
+    input              data_ready);  // data input ready
 
    logic eop;
 
-   enum integer {IDLE,TOKEN[2]} state;
+   enum integer {IDLE,TOKEN[2],DATA_O,DATA_I} state;
 
    /* FIXME */
    assign tx_data =8'h0;
@@ -43,21 +49,26 @@ module usb_controller
 	  pid        <=RESERVED;
 	  address    <=7'b0;
 	  end_point  <=4'b0;
+	  pid_valid  <=1'b0;
 	  token_valid<=1'b0;
+	  data_valid <=1'b0;
        end
      else
        begin
+	  pid_valid  <=1'b0;
 	  token_valid<=1'b0;
+	  data_valid <=1'b0;
 
 	  case(state)
 	    IDLE:
-	      if(rx_valid && !rx_error)
+	      if(rx_active && !rx_error && rx_valid)
 		if(valid_pid(rx_data))
 		  begin
 		     var pid_t current_pid;
 
 		     current_pid=pid_t'(rx_data[3:0]);
 		     pid       <=current_pid;
+		     pid_valid <=1'b1;
 
 		     case(current_pid)
 		       OUT,IN,SETUP: state<=TOKEN0;
@@ -67,32 +78,56 @@ module usb_controller
 		  pid<=RESERVED;
 
 	    TOKEN0:
-	      if(rx_valid)
-		if(!rx_error)
-		  begin
-		     address     <=rx_data[6:0];
-		     end_point[0]<=rx_data[7];
-		     state       <=TOKEN1;
-		  end
-		else
-		  state<=IDLE;
+	      if(rx_active && !rx_error)
+		begin
+		   if(rx_valid)
+		     begin
+			address     <=rx_data[6:0];
+			end_point[0]<=rx_data[7];
+			state       <=TOKEN1;
+		     end
+		end
+	      else
+		state<=IDLE; // RX finished or error
+
 
 	    TOKEN1:
-	      if(rx_valid)
-		if(!rx_error)
-		  begin
-		     end_point[3:1]<=rx_data[2:0];
+	      if(rx_active && !rx_error)
+		begin
+		   if(rx_valid)
+		     begin
+			end_point[3:1]<=rx_data[2:0];
 
-		     if(valid_crc5({rx_data,end_point[0],address}))
-		       begin
-			  token_valid<=1'b1;
-			  state      <=IDLE;
-		       end
-		     else
-		       state<=IDLE;
-		  end
-		else
-		  state<=IDLE;
+			if(valid_crc5({rx_data,end_point[0],address}))
+			  begin
+			     token_valid<=1'b1;
+
+			     case(pid)
+			       OUT,SETUP: state<=DATA_O;
+			       IN       : state<=DATA_I;
+			       default    state<=IDLE;   // should never happen
+			     endcase
+			  end
+			else
+			  state<=IDLE; // CRC5 error
+		     end
+		end
+	      else
+		state<=IDLE; // RX finished or error
+
+	    DATA_O:
+	      if(rx_active && !rx_error)
+		begin
+		   if(rx_valid)
+		     begin
+			data_o    <=rx_data;
+			data_valid<=1'b1;
+		     end
+		end
+	      else
+		state<=IDLE; // RX finished or error
+
+	    DATA_I: /*TODO*/ ;
 	  endcase
        end
 
@@ -110,7 +145,8 @@ module usb_controller
     * If all token bits are received without error the residual will
     * be 5'b01100.
     *
-    * Note, that the LSB is sent first hence the polynoms are reverted.
+    * Note, that the LSB is sent first hence the polynom and the
+    * residual are reversed.
     */
    function valid_crc5(input [15:0] d);
       const bit [4:0] crc5_poly=5'b10100,

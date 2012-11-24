@@ -28,9 +28,15 @@ module tb_usb_controller;
 
    /* Device */
    pid_t        pid;          // PID
+   wire         pid_valid;    // PID valid
    wire   [6:0] address;      // device address
    wire   [3:0] end_point;    // end point
    wire         token_valid;  // token valid
+   wire   [7:0] data_o;       // data output
+   wire         data_valid;   // data output valid
+   wire         crc16_ok;     // data CRC16
+   bit    [7:0] data_i;       // data input
+   bit          data_ready;   // data input ready
 
    /* some data */
    byte data0[]='{8'h00,8'h01,8'h02,8'h03},
