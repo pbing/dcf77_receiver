@@ -14,7 +14,7 @@ module tb_usb_cdr;
    d_port_t     line_state;
    wire         strobe;
 
-   usb_cdr usb_cdr(.*);
+   usb_cdr dut(.*);
 
    initial forever #(tclk/2) clk=~clk;
 
