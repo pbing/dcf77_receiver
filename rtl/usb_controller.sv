@@ -27,7 +27,7 @@ module usb_controller
 
    logic eop;
 
-   enum logic [31:0] {IDLE,TOKEN[3]} state;
+   enum integer {IDLE,TOKEN[2]} state;
 
    /* FIXME */
    assign tx_data =8'h0;

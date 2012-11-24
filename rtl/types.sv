@@ -19,7 +19,7 @@ package types;
 			   DATA1  =4'b1011,
 			   /* Handshake */
 			   ACK    =4'b0010,
-			   NACK   =4'b1010,
+			   NAK    =4'b1010,
 			   STALL  =4'b1110,
 			   /* Special */
 			   PRE_ERR=4'b1100

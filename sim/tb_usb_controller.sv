@@ -32,6 +32,10 @@ module tb_usb_controller;
    wire   [3:0] end_point;    // end point
    wire         token_valid;  // token valid
 
+   /* some data */
+   byte data0[]='{8'h00,8'h01,8'h02,8'h03},
+	data1[]='{8'h23,8'h45,8'h67,8'h89};
+
    usb_controller dut(.*);
 
    initial forever #(tclk/2) clk=~clk;
@@ -44,16 +48,23 @@ module tb_usb_controller;
 	#100ns;
 	@(posedge clk) rx_active=1'b1;
 
-	send(SETUP,7'h15,4'he);
-	send(OUT,7'h3a,4'ha);
-	send(IN,7'h70,4'h4);
+	send_token(SETUP,7'h15,4'he);
+	send_token(OUT,7'h3a,4'ha);
+	send_token(IN,7'h70,4'h4);
+
+	send_data(DATA0,data0);
+	send_data(DATA1,data1);
+
+	send_handshake(ACK);
+	send_handshake(NAK);
+	send_handshake(STALL);
 
 	@(posedge clk) rx_active=1'b0;
 
-	#1us $stop;
+	#3us $stop;
      end:main
 
-   task send(pid_t pid,logic [6:0] addr,logic [3:0] endp);
+   task send_token(pid_t pid,logic [6:0] addr,logic [3:0] endp);
       /* PID */
       repeat(128-1) @(posedge clk);
       rx_valid<=1'b1;
@@ -70,6 +81,43 @@ module tb_usb_controller;
       repeat(128-1) @(posedge clk);
       rx_valid<=1'b1;
       rx_data <={crc5({endp,addr}),endp[3:1]};
+      @(posedge clk) rx_valid<=1'b0;
+
+      /* EOP */
+      @(posedge clk) line_state<=SE0;
+      repeat(32) @(posedge clk);
+      line_state<=J;
+   endtask
+
+   task send_data(pid_t pid,byte data[]);
+      /* PID */
+      repeat(128-1) @(posedge clk);
+      rx_valid<=1'b1;
+      rx_data <={~pid,pid};
+      @(posedge clk) rx_valid<=1'b0;
+
+      foreach(data[i])
+	begin
+	   repeat(128-1) @(posedge clk);
+	   rx_valid<=1'b1;
+	   rx_data <=data[i];
+	   @(posedge clk) rx_valid<=1'b0;
+	end
+
+      /* CRC16 */
+      // TODO
+
+      /* EOP */
+      @(posedge clk) line_state<=SE0;
+      repeat(32) @(posedge clk);
+      line_state<=J;
+   endtask
+
+   task send_handshake(pid_t pid);
+      /* PID */
+      repeat(128-1) @(posedge clk);
+      rx_valid<=1'b1;
+      rx_data <={~pid,pid};
       @(posedge clk) rx_valid<=1'b0;
 
       /* EOP */
