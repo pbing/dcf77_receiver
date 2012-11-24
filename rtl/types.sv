@@ -10,18 +10,24 @@ package types;
 
    /* Packets */
    typedef enum bit [3:0] {/* Token */
-			   OUT    =4'b0001,
-			   IN     =4'b1001,
-			   SOF    =4'b0101,
-			   SETUP  =4'b1101,
+			   OUT     =4'b0001,
+			   IN      =4'b1001,
+			   SOF     =4'b0101,
+			   SETUP   =4'b1101,
 			   /* Data */
-			   DATA0  =4'b0011,
-			   DATA1  =4'b1011,
+			   DATA0   =4'b0011,
+			   DATA1   =4'b1011,
+			   DATA2   =4'b0111,
+			   MDATA   =4'b1111,
 			   /* Handshake */
-			   ACK    =4'b0010,
-			   NAK    =4'b1010,
-			   STALL  =4'b1110,
+			   ACK     =4'b0010,
+			   NAK     =4'b1010,
+			   STALL   =4'b1110,
+			   NYET    =4'b0110,
 			   /* Special */
-			   PRE_ERR=4'b1100
+			   PRE_ERR =4'b1100, // PRE and ERR use the same value
+			   SPLIT   =4'b1000,
+			   PING    =4'b0100,
+			   RESERVED=4'b0000
 			   } pid_t;
 endpackage

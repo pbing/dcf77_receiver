@@ -40,7 +40,7 @@ module usb_controller
      if(reset)
        begin
 	  state      <=IDLE;
-	  pid        <=pid_t'('0);
+	  pid        <=RESERVED;
 	  address    <=7'b0;
 	  end_point  <=4'b0;
 	  token_valid<=1'b0;
@@ -64,7 +64,7 @@ module usb_controller
 		     endcase
 		  end
 		else
-		  pid<=pid_t'('0);
+		  pid<=RESERVED;
 
 	    TOKEN0:
 	      if(rx_valid)
