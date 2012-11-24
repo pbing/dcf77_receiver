@@ -20,7 +20,7 @@ module tb_usb_rx;
    int          num_ones;
    integer      seed;
 
-   cdr    cdr(.*,.q(rx_d),.strobe(clk_en));
+   usb_cdr usb_cdr(.*,.q(rx_d),.strobe(clk_en));
    usb_rx dut(.*,.d_i(rx_d));
 
    initial forever #(tclk/2) clk=~clk;

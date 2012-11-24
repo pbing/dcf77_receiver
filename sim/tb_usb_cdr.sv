@@ -1,4 +1,4 @@
-module tb_cdr;
+module tb_usb_cdr;
    timeunit 1ns;
    timeprecision 1ps;
 
@@ -7,13 +7,14 @@ module tb_cdr;
    const realtime tclk=1s/24.0e6,
 		  tbit=1s/1.5e6;
 
-   bit          reset=1;
+   bit          reset=1'b1;
    bit          clk;
    var d_port_t d;
    d_port_t     q;
+   d_port_t     line_state;
    wire         strobe;
 
-   cdr cdr(.*);
+   usb_cdr usb_cdr(.*);
 
    initial forever #(tclk/2) clk=~clk;
 

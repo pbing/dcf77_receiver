@@ -25,9 +25,9 @@ module usb_transceiver
    wire     rx_clk_en;          // RX clock enable
    d_port_t rx_d_i;             // RX data from CDR
 
-   cdr cdr(.reset(reset),.clk(clk),
-	   .d(d_i),.q(rx_d_i),
- 	   .line_state(line_state),.strobe(rx_clk_en));
+   usb_cdr usb_cdr(.reset(reset),.clk(clk),
+		   .d(d_i),.q(rx_d_i),
+ 		   .line_state(line_state),.strobe(rx_clk_en));
 
    usb_rx usb_rx(.reset(reset),.clk(clk),.clk_en(rx_clk_en),
 		 .d_i(rx_d_i),

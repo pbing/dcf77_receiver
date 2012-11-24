@@ -2,7 +2,7 @@
  * for USB low speed reveiver (1.5 MHz).
  */
 
-module cdr
+module usb_cdr
   import types::*;
    (input           reset,          // system reset
     input           clk,            // system clock (24 MHz)
