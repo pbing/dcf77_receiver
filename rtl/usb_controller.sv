@@ -109,10 +109,12 @@ module usb_controller
     *
     * If all token bits are received without error the residual will
     * be 5'b01100.
+    *
+    * Note, that the LSB is sent first hence the polynoms are reverted.
     */
    function valid_crc5(input [15:0] d);
-      const bit [4:0] crc5_poly=5'b10100, // inverse direction
-		      crc5_res =5'b00110; // inverse direction
+      const bit [4:0] crc5_poly=5'b10100,
+		      crc5_res =5'b00110;
       logic [4:0] crc5;
 
       crc5='1;
