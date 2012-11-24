@@ -2,26 +2,30 @@
 
 module usb_controller
   import types::*;
-   (input              reset,      // system reset
-    input              clk,        // system clock (24 MHz)
+   (input              reset,        // system reset
+    input              clk,          // system clock (24 MHz)
 
     /* USB Bus */
-    input     d_port_t line_state, // synchronized D+,D-
+    input     d_port_t line_state,   // synchronized D+,D-
 
     /* TX */
-    output       [7:0] tx_data,    // data from SIE
-    output             tx_valid,   // rise:SYNC,1:send data,fall:EOP
-    input              tx_ready,   // data has been sent
+    output       [7:0] tx_data,      // data from SIE
+    output             tx_valid,     // rise:SYNC,1:send data,fall:EOP
+    input              tx_ready,     // data has been sent
 
     /* RX */
-    input        [7:0] rx_data,    // data to SIE
-    input              rx_active,  // active between SYNC und EOP
-    input              rx_valid,   // data valid pulse
-    input              rx_error,   // error detected
+    input        [7:0] rx_data,      // data to SIE
+    input              rx_active,    // active between SYNC und EOP
+    input              rx_valid,     // data valid pulse
+    input              rx_error,     // error detected
 
     /* Device */
-    output logic [6:0] address,    // device address
-    output logic [3:0] end_point); // end point
+    output pid_t       pid,          // PID
+    output logic [6:0] address,      // device address
+    output logic [3:0] end_point,    // end point
+    output logic       token_valid); // token valid
+
+   logic eop;
 
    enum logic [31:0] {IDLE,TOKEN[3]} state;
 
@@ -29,62 +33,68 @@ module usb_controller
    assign tx_data =8'h0;
    assign tx_valid=1'b0;
 
-   (* noprune *) var   pid_t pid;
-   (* noprune *) logic [4:0] crc5;
+   /* EOP */
+   always_comb eop=(line_state==SE0);
 
    always_ff @(posedge clk)
      if(reset)
        begin
-	  state    <=IDLE;
-	  pid      <=pid_t'('0);
-	  address  <=7'b0;
-	  end_point<=4'b0;
-	  crc5     <=5'b0;
+	  state      <=IDLE;
+	  pid        <=pid_t'('0);
+	  address    <=7'b0;
+	  end_point  <=4'b0;
+	  token_valid<=1'b0;
        end
      else
-       case(state)
-	 IDLE:
-	   if(rx_valid && !rx_error)
-	     if(valid_pid(rx_data))
-	       begin
-		  var pid_t current_pid;
+       begin
+	  token_valid<=1'b0;
 
-		  current_pid=pid_t'(rx_data[3:0]);
-		  pid       <=current_pid;
+	  case(state)
+	    IDLE:
+	      if(rx_valid && !rx_error)
+		if(valid_pid(rx_data))
+		  begin
+		     var pid_t current_pid;
 
-		  case(current_pid)
-		    OUT,IN,SETUP: state<=TOKEN0;
-		  endcase
-	       end
-	     else
-	       pid<=pid_t'('0);
+		     current_pid=pid_t'(rx_data[3:0]);
+		     pid       <=current_pid;
 
-	 TOKEN0:
-	   if(rx_valid)
-	     if(!rx_error)
-	       begin
-		  address     <=rx_data[6:0];
-		  end_point[0]<=rx_data[7];
-		  state       <=TOKEN1;
-	       end
-	     else
-	       state<=IDLE;
+		     case(current_pid)
+		       OUT,IN,SETUP: state<=TOKEN0;
+		     endcase
+		  end
+		else
+		  pid<=pid_t'('0);
 
-	 TOKEN1:
-	   if(rx_valid)
-	     if(!rx_error)
-	       begin
-		  end_point[3:1]<=rx_data[2:0];
-		  crc5          <=rx_data[7:3];
+	    TOKEN0:
+	      if(rx_valid)
+		if(!rx_error)
+		  begin
+		     address     <=rx_data[6:0];
+		     end_point[0]<=rx_data[7];
+		     state       <=TOKEN1;
+		  end
+		else
+		  state<=IDLE;
 
-		  if(valid_crc5({rx_data,end_point[3],address}))
-		    state<=TOKEN2; // FIXME
-		  else
-		    state<=IDLE;
-	       end
-	     else
-	       state<=IDLE;
-       endcase
+	    TOKEN1:
+	      if(rx_valid)
+		if(!rx_error)
+		  begin
+		     end_point[3:1]<=rx_data[2:0];
+
+		     if(valid_crc5({rx_data,end_point[0],address}))
+		       begin
+			  token_valid<=1'b1;
+			  state      <=IDLE;
+		       end
+		     else
+		       state<=IDLE;
+		  end
+		else
+		  state<=IDLE;
+	  endcase
+       end
 
    /************************************************************************
     * Functions

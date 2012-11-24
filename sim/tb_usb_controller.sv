@@ -9,26 +9,28 @@ module tb_usb_controller;
 
    import types::*;
 
-   bit          reset=1'b1; // system reset
-   bit          clk;        // system clock (24 MHz)
+   bit          reset=1'b1;   // system reset
+   bit          clk;          // system clock (24 MHz)
 
    /* USB Bus */
    var d_port_t line_state=J; // synchronized D+,D-
 
    /* TX */
-   wire   [7:0] tx_data;    // data from SIE
-   wire         tx_valid;   // rise:SYNC,1:send data,fall:EOP
-   bit          tx_ready;   // data has been sent
+   wire   [7:0] tx_data;      // data from SIE
+   wire         tx_valid;     // rise:SYNC,1:send data,fall:EOP
+   bit          tx_ready;     // data has been sent
 
    /* RX */
-   bit    [7:0] rx_data;    // data to SIE
-   bit          rx_active;  // active between SYNC und EOP
-   bit          rx_valid;   // data valid pulse
-   bit          rx_error;   // error detected
+   bit    [7:0] rx_data;      // data to SIE
+   bit          rx_active;    // active between SYNC und EOP
+   bit          rx_valid;     // data valid pulse
+   bit          rx_error;     // error detected
 
    /* Device */
-   wire   [6:0] address;    // device address
-   wire   [3:0] end_point; // end point
+   pid_t        pid;          // PID
+   wire   [6:0] address;      // device address
+   wire   [3:0] end_point;    // end point
+   wire         token_valid;  // token valid
 
    usb_controller dut(.*);
 
@@ -40,10 +42,13 @@ module tb_usb_controller;
 	reset=1'b0;
 
 	#100ns;
-	send(SETUP,7'h15,4'he,5'b11101);
-	//send(OUT,7'h3a,4'ha,5'b00111);
-	//send(IN,7'h70,4'h4,5'b01110);
+	@(posedge clk) rx_active=1'b1;
 
+	send(SETUP,7'h15,4'he,5'b11101);
+	send(OUT,7'h3a,4'ha,5'b00111);
+	send(IN,7'h70,4'h4,5'b01110);
+
+	@(posedge clk) rx_active=1'b0;
 
 	#1us $stop;
      end:main
