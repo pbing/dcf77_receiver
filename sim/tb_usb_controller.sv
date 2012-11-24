@@ -44,16 +44,16 @@ module tb_usb_controller;
 	#100ns;
 	@(posedge clk) rx_active=1'b1;
 
-	send(SETUP,7'h15,4'he,5'b11101);
-	send(OUT,7'h3a,4'ha,5'b00111);
-	send(IN,7'h70,4'h4,5'b01110);
+	send(SETUP,7'h15,4'he);
+	send(OUT,7'h3a,4'ha);
+	send(IN,7'h70,4'h4);
 
 	@(posedge clk) rx_active=1'b0;
 
 	#1us $stop;
      end:main
 
-   task send(pid_t pid,logic [6:0] addr,logic [3:0] endp,logic [4:0] crc5);
+   task send(pid_t pid,logic [6:0] addr,logic [3:0] endp);
       /* PID */
       repeat(128-1) @(posedge clk);
       rx_valid<=1'b1;
@@ -69,7 +69,7 @@ module tb_usb_controller;
       /* Rest of ENDP and CRC5 */
       repeat(128-1) @(posedge clk);
       rx_valid<=1'b1;
-      rx_data <={crc5,endp[3:1]};
+      rx_data <={crc5({endp,addr}),endp[3:1]};
       @(posedge clk) rx_valid<=1'b0;
 
       /* EOP */
@@ -77,4 +77,19 @@ module tb_usb_controller;
       repeat(32) @(posedge clk);
       line_state<=J;
    endtask
+
+   function [4:0] crc5(input [10:0] d);
+      const bit [4:0] crc5_poly=5'b10100,
+		      crc5_res =5'b00110;
+
+      crc5='1;
+
+      for(int i=$right(d);i<=$left(d);i++)
+	if(crc5[$right(crc5)]^d[i])
+	  crc5=(crc5>>1)^crc5_poly;
+	else
+	  crc5=crc5>>1;
+
+      crc5=~crc5;
+   endfunction
 endmodule
