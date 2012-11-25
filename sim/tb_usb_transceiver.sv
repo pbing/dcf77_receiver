@@ -19,7 +19,7 @@ module tb_usb_transceiver;
    var d_port_t  d_i;        // USB port D+,D- (input)
    d_port_t      d_o;        // USB port D+,D- (output)
    wire          d_en;       // USB port D+,D- (enable)
-   d_port_t      line_state; // synchronized D+,D-
+   wire          usb_reset;  // USB reset due to SE0 for 10 ms
 
    /* TX */
    bit  [7:0]    tx_data;    // data from SIE
