@@ -114,7 +114,7 @@ module CII_Starter_TOP (/* Clock Input */
    d_port_t   usb_d_i;        // USB port D+,D- (input)
    d_port_t   usb_d_o;        // USB port D+,D- (output)
    logic      usb_d_en;       // USB port D+,D- (enable)
-   d_port_t   usb_line_state; // synchronized D+,D-
+   logic      usb_reset;      // USB reset due to SE0 for 10 ms
 
    wire [7:0] usb_tx_data;    // data from SIE
    wire       usb_tx_valid;   // rise:SYNC,1:send data,fall:EOP
@@ -131,10 +131,10 @@ module CII_Starter_TOP (/* Clock Input */
    wire [3:0] usb_end_point;    // end point
    wire       usb_token_valid;  // token valid
    wire [7:0] usb_data_o;       // data output
-   wire       usb_data_valid;   // data output valid
-   wire       usb_crc16_ok;     // data CRC16
+   wire       usb_data_o_valid; // data output valid
    wire [7:0] usb_data_i;       // data input
-   wire       usb_data_ready;  // data input ready
+   wire       usb_data_i_valid; // data input valid
+   wire       usb_data_i_ready; // data input ready
 
    /* synchronize reset */
    logic [0:1] rst_s;
@@ -222,19 +222,18 @@ module CII_Starter_TOP (/* Clock Input */
     * USB Interface
     ********************************************************************************/
 
-   usb_transceiver usb_transceiver (.reset(rst),
-				    .clk(clk),
-				    .d_i(usb_d_i),.d_o(usb_d_o),.d_en(usb_d_en),.line_state(usb_line_state),
+   usb_transceiver usb_transceiver (.reset(rst),.clk(clk),
+				    .d_i(usb_d_i),.d_o(usb_d_o),.d_en(usb_d_en),.usb_reset(usb_reset),
 				    .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
 				    .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
 
-   usb_controller usb_controller(.reset(rst),.clk(clk),
+   usb_controller usb_controller(.reset(usb_reset),.clk(clk),
 				 .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
 				 .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error),
 				 .pid(usb_pid),.pid_valid(usb_pid_valid),
 				 .address(usb_address),.end_point(usb_end_point),.token_valid(usb_token_valid),
-				 .data_o(usb_data_o),.data_valid(usb_data_valid),.crc16_ok(usb_crc16_ok),
-				 .data_i(usb_data_i),.data_ready(usb_data_ready));
+				 .data_o(usb_data_o),.data_o_valid(usb_data_o_valid),
+				 .data_i(usb_data_i),.data_i_valid(usb_data_i_valid),.data_i_ready(usb_data_i_ready));
 
    /********************************************************************************
     * Functions
