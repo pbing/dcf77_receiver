@@ -16,7 +16,7 @@ module usb_cdr
    var d_port_t       d_shift[1:2]; // shifted data
    logic              up,down;      // phase shift direction
 
-   always @(posedge clk)
+   always_ff @(posedge clk)
      if(reset)
        begin
 	  d_shift[1]<=J;
