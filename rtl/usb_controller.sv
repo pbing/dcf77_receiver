@@ -2,33 +2,34 @@
 
 module usb_controller
   import types::*;
-   (input              reset,        // system reset
-    input              clk,          // system clock (24 MHz)
+   (input              reset,         // system reset
+    input              clk,           // system clock (24 MHz)
+				      
+    /* TX */			      
+    output       [7:0] tx_data,       // data from SIE
+    output             tx_valid,      // rise:SYNC,1:send data,fall:EOP
+    input              tx_ready,      // data has been sent
+				      
+    /* RX */			      
+    input        [7:0] rx_data,       // data to SIE
+    input              rx_active,     // active between SYNC und EOP
+    input              rx_valid,      // data valid pulse
+    input              rx_error,      // error detected
+				      
+    /* Device */		      
+    output pid_t       pid,           // PID
+    output logic       pid_valid,     // PID valid
+    output logic [6:0] address,       // device address
+    output logic [3:0] end_point,     // end point
+    output logic       token_valid,   // token valid
+    output logic [7:0] data_o,        // data output
+    output logic       data_o_valid,  // data output valid
+    input        [7:0] data_i,        // data input
+    input              data_i_valid,  // data input valid
+    output logic       data_i_ready); // data input ready
 
-    /* TX */
-    output       [7:0] tx_data,      // data from SIE
-    output             tx_valid,     // rise:SYNC,1:send data,fall:EOP
-    input              tx_ready,     // data has been sent
-
-    /* RX */
-    input        [7:0] rx_data,      // data to SIE
-    input              rx_active,    // active between SYNC und EOP
-    input              rx_valid,     // data valid pulse
-    input              rx_error,     // error detected
-
-    /* Device */
-    output pid_t       pid,          // PID
-    output logic       pid_valid,    // PID valid
-    output logic [6:0] address,      // device address
-    output logic [3:0] end_point,    // end point
-    output logic       token_valid,  // token valid
-    output logic [7:0] data_o,       // data output
-    output logic       data_valid,   // data output valid
-    output logic       crc16_ok,     // data CRC16
-    input        [7:0] data_i,       // data input
-    input              data_ready);  // data input ready
-
-   enum integer {IDLE,TOKEN[2],DATA_O,DATA_I} state;
+   enum integer {IDLE,TOKEN[2],DATA_O,DATA_I} state;     // FSM state
+   enum logic   {DIROUT,DIRIN}                direction; // data direction
 
    /* FIXME */
    assign tx_data =8'h0;
@@ -37,19 +38,20 @@ module usb_controller
    always_ff @(posedge clk)
      if(reset)
        begin
-	  state      <=IDLE;
-	  pid        <=RESERVED;
-	  address    <=7'b0;
-	  end_point  <=4'b0;
-	  pid_valid  <=1'b0;
-	  token_valid<=1'b0;
-	  data_valid <=1'b0;
+	  state       <=IDLE;
+	  direction   <=DIROUT;
+	  pid         <=RESERVED;
+	  address     <=7'b0;
+	  end_point   <=4'b0;
+	  pid_valid   <=1'b0;
+	  token_valid <=1'b0;
+	  data_o_valid<=1'b0;
        end
      else
        begin
-	  pid_valid  <=1'b0;
-	  token_valid<=1'b0;
-	  data_valid <=1'b0;
+	  pid_valid   <=1'b0;
+	  token_valid <=1'b0;
+	  data_o_valid<=1'b0;
 
 	  case(state)
 	    IDLE:
@@ -63,11 +65,27 @@ module usb_controller
 		     pid_valid <=1'b1;
 
 		     case(current_pid)
-		       OUT,IN,SETUP: state<=TOKEN0;
+		       OUT,SETUP:
+			 begin
+			    direction<=DIROUT;
+			    state    <=TOKEN0;
+			 end
+
+		       IN:
+			 begin
+			    direction<=DIRIN;
+			    state    <=TOKEN0;
+			 end
+
+		       DATA0,DATA1:
+			 case(direction)
+			   DIROUT: state<=DATA_O;
+			   DIRIN : state<=DATA_I;
+			 endcase
 		     endcase
 		  end
 		else
-		  pid<=RESERVED;
+		  pid<=RESERVED; // PID invalid
 
 	    TOKEN0:
 	      if(rx_active && !rx_error)
@@ -80,7 +98,7 @@ module usb_controller
 		     end
 		end
 	      else
-		state<=IDLE; // RX finished or error
+		state<=IDLE; // EOP or error
 
 
 	    TOKEN1:
@@ -91,33 +109,25 @@ module usb_controller
 			end_point[3:1]<=rx_data[2:0];
 
 			if(valid_crc5({rx_data,end_point[0],address}))
-			  begin
-			     token_valid<=1'b1;
+			  token_valid<=1'b1;
 
-			     case(pid)
-			       OUT,SETUP: state<=DATA_O;
-			       IN       : state<=DATA_I;
-			       default    state<=IDLE;   // should never happen
-			     endcase
-			  end
-			else
-			  state<=IDLE; // CRC5 error
+			state<=IDLE;
 		     end
 		end
 	      else
-		state<=IDLE; // RX finished or error
+		state<=IDLE; // EOP or error
 
 	    DATA_O:
 	      if(rx_active && !rx_error)
 		begin
 		   if(rx_valid)
 		     begin
-			data_o    <=rx_data;
-			data_valid<=1'b1;
+			data_o      <=rx_data;
+			data_o_valid<=1'b1;
 		     end
 		end
 	      else
-		state<=IDLE; // RX finished or error
+		state<=IDLE; // EOP or error
 
 	    DATA_I: /*TODO*/ state<=IDLE;
 	  endcase

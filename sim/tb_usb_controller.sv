@@ -30,14 +30,14 @@ module tb_usb_controller;
    wire   [3:0] end_point;    // end point
    wire         token_valid;  // token valid
    wire   [7:0] data_o;       // data output
-   wire         data_valid;   // data output valid
-   wire         crc16_ok;     // data CRC16
+   wire         data_o_valid; // data output valid
    bit    [7:0] data_i;       // data input
-   bit          data_ready;   // data input ready
+   bit          data_i_valid; // data input valid
+   wire         data_i_ready; // data input ready
 
    /* some data */
-   byte data0[]='{8'h00,8'h01,8'h02,8'h03},
-	data1[]='{8'h23,8'h45,8'h67,8'h89};
+   byte data0[]='{8'h00,8'h01,8'h02,8'h03,8'hef,8'h7a},
+	data1[]='{8'h23,8'h45,8'h67,8'h89,8'h0e,8'h1c};
 
    usb_controller dut(.*);
 
@@ -52,11 +52,14 @@ module tb_usb_controller;
 	@(posedge clk) rx_active=1'b1;
 
 	send_token(SETUP,7'h15,4'he);
-	send_token(OUT,7'h3a,4'ha);
-	send_token(IN,7'h70,4'h4);
+	send_data(DATA0,data0);
 
+	send_token(OUT,7'h3a,4'ha);
 	send_data(DATA0,data0);
 	send_data(DATA1,data1);
+	send_data(DATA0,data0);
+
+	send_token(IN,7'h70,4'h4);
 
 	send_handshake(ACK);
 	send_handshake(NAK);
