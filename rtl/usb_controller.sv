@@ -5,9 +5,6 @@ module usb_controller
    (input              reset,        // system reset
     input              clk,          // system clock (24 MHz)
 
-    /* USB Bus */
-    input     d_port_t line_state,   // synchronized D+,D-
-
     /* TX */
     output       [7:0] tx_data,      // data from SIE
     output             tx_valid,     // rise:SYNC,1:send data,fall:EOP
@@ -31,16 +28,11 @@ module usb_controller
     input        [7:0] data_i,       // data input
     input              data_ready);  // data input ready
 
-   logic eop;
-
    enum integer {IDLE,TOKEN[2],DATA_O,DATA_I} state;
 
    /* FIXME */
    assign tx_data =8'h0;
    assign tx_valid=1'b0;
-
-   /* EOP */
-   always_comb eop=(line_state==SE0);
 
    always_ff @(posedge clk)
      if(reset)
@@ -127,7 +119,7 @@ module usb_controller
 	      else
 		state<=IDLE; // RX finished or error
 
-	    DATA_I: /*TODO*/ ;
+	    DATA_I: /*TODO*/ state<=IDLE;
 	  endcase
        end
 

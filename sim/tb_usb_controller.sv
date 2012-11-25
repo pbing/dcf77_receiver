@@ -12,9 +12,6 @@ module tb_usb_controller;
    bit          reset=1'b1;   // system reset
    bit          clk;          // system clock (24 MHz)
 
-   /* USB Bus */
-   var d_port_t line_state=J; // synchronized D+,D-
-
    /* TX */
    wire   [7:0] tx_data;      // data from SIE
    wire         tx_valid;     // rise:SYNC,1:send data,fall:EOP
@@ -73,6 +70,7 @@ module tb_usb_controller;
    task send_token(pid_t pid,logic [6:0] addr,logic [3:0] endp);
       /* PID */
       repeat(128-1) @(posedge clk);
+      rx_active<=1'b1;
       rx_valid<=1'b1;
       rx_data <={~pid,pid};
       @(posedge clk) rx_valid<=1'b0;
@@ -90,14 +88,14 @@ module tb_usb_controller;
       @(posedge clk) rx_valid<=1'b0;
 
       /* EOP */
-      @(posedge clk) line_state<=SE0;
       repeat(32) @(posedge clk);
-      line_state<=J;
+      rx_active<=1'b0;
    endtask
 
    task send_data(pid_t pid,byte data[]);
       /* PID */
       repeat(128-1) @(posedge clk);
+      rx_active<=1'b1;
       rx_valid<=1'b1;
       rx_data <={~pid,pid};
       @(posedge clk) rx_valid<=1'b0;
@@ -114,22 +112,21 @@ module tb_usb_controller;
       // TODO
 
       /* EOP */
-      @(posedge clk) line_state<=SE0;
       repeat(32) @(posedge clk);
-      line_state<=J;
+      rx_active<=1'b0;
    endtask
 
    task send_handshake(pid_t pid);
       /* PID */
       repeat(128-1) @(posedge clk);
+      rx_active<=1'b1;
       rx_valid<=1'b1;
       rx_data <={~pid,pid};
       @(posedge clk) rx_valid<=1'b0;
 
       /* EOP */
-      @(posedge clk) line_state<=SE0;
       repeat(32) @(posedge clk);
-      line_state<=J;
+      rx_active<=1'b0;
    endtask
 
    function [4:0] crc5(input [10:0] d);
