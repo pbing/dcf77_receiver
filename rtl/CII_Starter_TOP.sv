@@ -125,6 +125,17 @@ module CII_Starter_TOP (/* Clock Input */
    wire       usb_rx_valid;   // data valid pulse
    wire       usb_rx_error;   // error detected
 
+   pid_t      usb_pid;          // PID
+   wire       usb_pid_valid;    // PID valid
+   wire [6:0] usb_address;      // device address
+   wire [3:0] usb_end_point;    // end point
+   wire       usb_token_valid;  // token valid
+   wire [7:0] usb_data_o;       // data output
+   wire       usb_data_valid;   // data output valid
+   wire       usb_crc16_ok;     // data CRC16
+   wire [7:0] usb_data_i;       // data input
+   wire       usb_data_ready;  // data input ready
+
    /* synchronize reset */
    logic [0:1] rst_s;
    always_ff @(posedge clk)
@@ -218,9 +229,12 @@ module CII_Starter_TOP (/* Clock Input */
 				    .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
 
    usb_controller usb_controller(.reset(rst),.clk(clk),
-				 .line_state(usb_line_state),
 				 .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
-				 .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
+				 .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error),
+				 .pid(usb_pid),.pid_valid(usb_pid_valid),
+				 .address(usb_address),.end_point(usb_end_point),.token_valid(usb_token_valid),
+				 .data_o(usb_data_o),.data_valid(usb_data_valid),.crc16_ok(usb_crc16_ok),
+				 .data_i(usb_data_i),.data_ready(usb_data_ready));
 
    /********************************************************************************
     * Functions
