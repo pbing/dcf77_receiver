@@ -89,7 +89,7 @@ module tb_top;
 
    bit rx;
 
-   CII_Starter_TOP CII_Starter_TOP(.*);
+   CII_Starter_TOP dut(.*);
 
    assign GPIO_1[35]=rx;
 
