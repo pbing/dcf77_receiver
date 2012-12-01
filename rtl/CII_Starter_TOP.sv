@@ -96,6 +96,9 @@ module CII_Starter_TOP (/* Clock Input */
                         inout [35:0]  GPIO_0,      // GPIO Connection 0
                         inout [35:0]  GPIO_1);     // GPIO Connection 1
 
+   localparam       num_endp=2;         // number of endpoints (1...3 for low-speed devices)
+   localparam [6:0] usb_device_addr=42; // assigned device address
+
    import types::*;
 
    /* common signals */
@@ -118,23 +121,23 @@ module CII_Starter_TOP (/* Clock Input */
 
    wire [7:0] usb_tx_data;    // data from SIE
    wire       usb_tx_valid;   // rise:SYNC,1:send data,fall:EOP
-   wire       usb_tx_ready;   // data has been sent
+   wire       usb_tx_ready;   // DEBUG data has been sent
 
    wire [7:0] usb_rx_data;    // data to SIE
    wire       usb_rx_active;  // active between SYNC und EOP
    wire       usb_rx_valid;   // data valid pulse
    wire       usb_rx_error;   // error detected
 
-   pid_t      usb_pid;          // PID
-   wire       usb_pid_valid;    // PID valid
-   wire [6:0] usb_address;      // device address
-   wire [3:0] usb_end_point;    // end point
-   wire       usb_token_valid;  // token valid
-   wire [7:0] usb_data_o;       // data output
-   wire       usb_data_o_valid; // data output valid
-   wire [7:0] usb_data_i;       // data input
-   wire       usb_data_i_valid; // data input valid
-   wire       usb_data_i_ready; // data input ready
+   /* USB Device */
+   wire [7:0] usb_endpi_data[num_endp];   // IN endpoint data wire
+   wire       usb_endpi_valid[num_endp];  // IN endpoint data valid
+   wire       usb_endpi_crc16[num_endp];  // IN endpoint calculate CRC16
+   wire       usb_endpi_ready[num_endp];  // IN endpoint data ready
+
+   wire [7:0] usb_endpo_data[num_endp];   // OUT endpoint data output
+   wire       usb_endpo_valid[num_endp];  // OUT endpoint data valid
+   wire       usb_endpo_crc16[num_endp];  // OUT endpoint CRC16 flag
+   wire       usb_endpo_ready[num_endp];  // OUT endpoint data ready
 
    /* synchronize reset */
    logic [0:1] rst_s;
@@ -227,13 +230,12 @@ module CII_Starter_TOP (/* Clock Input */
 				    .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
 				    .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
 
-   usb_controller usb_controller(.reset(usb_reset),.clk(clk),
-				 .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
-				 .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error),
-				 .pid(usb_pid),.pid_valid(usb_pid_valid),
-				 .address(usb_address),.end_point(usb_end_point),.token_valid(usb_token_valid),
-				 .data_o(usb_data_o),.data_o_valid(usb_data_o_valid),
-				 .data_i(usb_data_i),.data_i_valid(usb_data_i_valid),.data_i_ready(usb_data_i_ready));
+   usb_sie #(num_endp) usb_sie(.reset(usb_reset),.clk(clk),
+			       .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
+			       .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error),
+			       .device_addr(usb_device_addr),
+			       .endpi_data(usb_endpi_data),.endpi_valid(usb_endpi_data),.endpi_crc16(usb_endpi_data),.endpi_ready(usb_endpi_data),
+			       .endpo_data(usb_endpo_data),.endpo_valid(usb_endpo_valid),.endpo_crc16(usb_endpo_crc16),.endpo_ready(usb_endpo_ready));
 
    /********************************************************************************
     * Functions
