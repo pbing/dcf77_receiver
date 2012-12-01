@@ -7,7 +7,9 @@ module tb_usb_sie;
    const realtime tusb=1s/1.5e6,       // low speed
 		  tclk=1s/24.0e6;
 
-   localparam num_endp=3;              // number of endpoints (1...3 for low-speed devices)
+   localparam       num_endp=3;        // number of endpoints (1...3 for low-speed devices)
+   localparam [6:0] device_addr=42;    // assigned device address
+
 
    import types::*;
 
@@ -25,8 +27,6 @@ module tb_usb_sie;
    bit          rx_error;              // error detected
 
    /* Device */
-   bit    [6:0] device_addr=42;           // assigned device address
-
    logic  [7:0] endpi_data[num_endp];  // IN endpoint data input
    logic        endpi_valid[num_endp]; // IN endpoint data valid
    logic        endpi_crc16[num_endp]; // IN endpoint calculate CRC16
@@ -52,29 +52,29 @@ module tb_usb_sie;
 
 	#100ns;
 
-	//send_token(SETUP,7'h15,4'he); // invalid control endpoint
-	send_token(SETUP,device_addr,4'h0);
-	send_data(DATA0,data0);
+	//receive_token(SETUP,7'h15,4'he); // invalid control endpoint
+	receive_token(SETUP,device_addr,4'h0);
+	receive_data(DATA0,data0);
 
-	//send_token(OUT,7'h3a,4'ha);
-	send_token(OUT,device_addr,4'h1);
-	send_data(DATA0,data0);
-	send_token(OUT,device_addr,4'h1);
-	send_data(DATA1,data1);
+	//receive_token(OUT,7'h3a,4'ha);
+	receive_token(OUT,device_addr,4'h1);
+	receive_data(DATA0,data0);
+	receive_token(OUT,device_addr,4'h1);
+	receive_data(DATA1,data1);
 
-//	send_token(IN,7'h70,4'h4);
-//	send_token(IN,device_addr,4'h2);
+//	receive_token(IN,7'h70,4'h4);
+//	receive_token(IN,device_addr,4'h2);
 
 /* -----\/----- EXCLUDED -----\/-----
-	send_handshake(ACK);
-	send_handshake(NAK);
-	send_handshake(STALL);
+	receive_handshake(ACK);
+	receive_handshake(NAK);
+	receive_handshake(STALL);
  -----/\----- EXCLUDED -----/\----- */
 
 	#3us $stop;
      end:main
 
-   task send_token(pid_t pid,logic [6:0] addr,logic [3:0] endp);
+   task receive_token(pid_t pid,logic [6:0] addr,logic [3:0] endp);
       /* PID */
       repeat(128-1) @(posedge clk);
       rx_active<=1'b1;
@@ -99,7 +99,7 @@ module tb_usb_sie;
       rx_active<=1'b0;
    endtask
 
-   task send_data(input pid_t pid,input byte data[]);
+   task receive_data(input pid_t pid,input byte data[]);
       /* PID */
       repeat(128-1) @(posedge clk);
       rx_active<=1'b1;
@@ -130,7 +130,7 @@ module tb_usb_sie;
       rx_active<=1'b0;
    endtask
 
-   task send_handshake(input pid_t pid);
+   task receive_handshake(input pid_t pid);
       /* PID */
       repeat(128-1) @(posedge clk);
       rx_active<=1'b1;
