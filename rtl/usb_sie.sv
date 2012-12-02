@@ -144,12 +144,13 @@ module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for
 		state<=DO_BCINTO3;
 
 	    DO_BCINTO3:
-	      if(tx_ready)
-		begin
-		   tx_data <=tx_pid(ACK);
-		   tx_valid<=1'b1;
-		   state   <=IDLE;
-		end
+	      begin
+		 tx_data <=tx_pid(ACK);
+		 tx_valid<=1'b1;
+
+		 if(tx_ready)
+		   state<=IDLE;
+	      end
 
 	    DO_BCINTI0: ;
 	  endcase
