@@ -5,11 +5,11 @@ module tb_usb_sie;
    timeprecision 1ps;
 
    const realtime tusb=1s/1.5e6,       // low speed
-		  tclk=1s/24.0e6;
+		  tclk=1s/24.0e6,
+		  nbit=tusb/tclk;
 
    localparam       num_endp=3;        // number of endpoints (1...3 for low-speed devices)
    localparam [6:0] device_addr=42;    // assigned device address
-
 
    import types::*;
 
@@ -19,7 +19,7 @@ module tb_usb_sie;
    /* Transceiver */
    wire   [7:0] tx_data;               // data from SIE
    wire         tx_valid;              // rise:SYNC,1:send data,fall:EOP
-   bit          tx_ready=1'b1;         // data has been sent
+   bit          tx_ready;              // data has been sent
 
    bit    [7:0] rx_data;               // data to SIE
    bit          rx_active;             // active between SYNC und EOP
@@ -37,71 +37,92 @@ module tb_usb_sie;
    wire         endpo_crc16[num_endp]; // OUT endpoint CRC16 flag
    logic        endpo_ready[num_endp]; // OUT endpoint data ready
 
-   /* some data */
-   byte data0[]='{8'h00,8'h01,8'h02,8'h03}, // CRC16=8'hef,8'h7a
-	data1[]='{8'h23,8'h45,8'h67,8'h89}; // CRC16=8'h0e,8'h1c
-
    usb_sie #(num_endp) dut(.*);
 
    initial forever #(tclk/2) clk=~clk;
 
    initial
      begin:main
+	$timeformat(-9,15," ns");
+
+	/* Some tests according to http://www.usb.org/developers/whitepapers/crcdes.pdf */
+	assert(crc5({4'he,7'h15})==5'b11101) else $error("CRC5");;
+	assert(crc5({4'ha,7'h3a})==5'b00111) else $error("CRC5");;
+	assert(crc5({4'h4,7'h70})==5'b01110) else $error("CRC5");;
+
+	assert(crc16('{8'h00,8'h01,8'h02,8'h03})==16'h7aef) else $error("CRC16");
+	assert(crc16('{8'h23,8'h45,8'h67,8'h89})==16'h1c0e) else $error("CRC16");
+	assert(crc16('{})                       ==16'h0000) else $error("CRC16"); // zero length packet
+
 	repeat(3) @(posedge clk);
 	reset=1'b0;
-
 	#100ns;
 
-	//receive_token(SETUP,7'h15,4'he); // invalid control endpoint
-	receive_token(SETUP,device_addr,4'h0);
-	receive_data(DATA0,data0);
+	/* SETUP */
+	receive_token(SETUP,device_addr,0);
+	receive_random_data(DATA0,8);
 
-	//receive_token(OUT,7'h3a,4'ha);
-	receive_token(OUT,device_addr,4'h1);
-	receive_data(DATA0,data0);
-	receive_token(OUT,device_addr,4'h1);
-	receive_data(DATA1,data1);
+	/* OUT */
+	receive_token(OUT,device_addr,1);
+	receive_random_data(DATA0,8);
 
-//	receive_token(IN,7'h70,4'h4);
-//	receive_token(IN,device_addr,4'h2);
+	receive_token(OUT,device_addr,1);
+	receive_random_data(DATA1,8);
 
-/* -----\/----- EXCLUDED -----\/-----
-	receive_handshake(ACK);
-	receive_handshake(NAK);
-	receive_handshake(STALL);
- -----/\----- EXCLUDED -----/\----- */
+	receive_token(OUT,device_addr,1);
+	receive_random_data(DATA0,0);
 
 	#3us $stop;
      end:main
 
+   always @(posedge tx_valid)
+     begin:tx
+	/* SYNC */
+	repeat(8*nbit) @(posedge clk);
+
+	fork
+	   wait(!tx_valid);
+
+	   begin
+	      repeat(8*nbit-1) @(posedge clk);
+	      tx_ready<=1'b1;
+	      @(posedge clk) tx_ready<=1'b0;
+	   end
+	join_any
+     end:tx
+
    task receive_token(pid_t pid,logic [6:0] addr,logic [3:0] endp);
+      repeat(2) @(posedge clk);
+      wait(!tx_valid);
+
       /* PID */
-      repeat(128-1) @(posedge clk);
+      repeat(8*nbit-1) @(posedge clk);
       rx_active<=1'b1;
       rx_valid<=1'b1;
       rx_data <={~pid,pid};
       @(posedge clk) rx_valid<=1'b0;
 
       /* ADDR and first bit of ENDP */
-      repeat(128-1) @(posedge clk);
+      repeat(8*nbit-1) @(posedge clk);
       rx_valid<=1'b1;
       rx_data <={endp[0],addr};
       @(posedge clk) rx_valid<=1'b0;
 
       /* Rest of ENDP and CRC5 */
-      repeat(128-1) @(posedge clk);
+      repeat(8*nbit-1) @(posedge clk);
       rx_valid<=1'b1;
       rx_data <={crc5({endp,addr}),endp[3:1]};
       @(posedge clk) rx_valid<=1'b0;
 
       /* EOP */
-      repeat(32) @(posedge clk);
+      repeat(2*nbit) @(posedge clk);
       rx_active<=1'b0;
+      @(posedge clk);
    endtask
 
    task receive_data(input pid_t pid,input byte data[]);
       /* PID */
-      repeat(128-1) @(posedge clk);
+      repeat(8*nbit-1) @(posedge clk);
       rx_active<=1'b1;
       rx_valid<=1'b1;
       rx_data <={~pid,pid};
@@ -109,7 +130,7 @@ module tb_usb_sie;
 
       foreach(data[i])
 	begin
-	   repeat(128-1) @(posedge clk);
+	   repeat(8*nbit-1) @(posedge clk);
 	   rx_valid<=1'b1;
 	   rx_data <=data[i];
 	   @(posedge clk) rx_valid<=1'b0;
@@ -118,29 +139,38 @@ module tb_usb_sie;
       /* CRC16 */
       for(int i=0;i<16;i+=8)
 	begin
-	   repeat(128-1) @(posedge clk);
+	   repeat(8*nbit-1) @(posedge clk);
 	   rx_valid<=1'b1;
 	   rx_data <=crc16(data)[7+i-:8];
 	   @(posedge clk) rx_valid<=1'b0;
 	end
 
-
       /* EOP */
-      repeat(32) @(posedge clk);
+      repeat(2*nbit) @(posedge clk);
       rx_active<=1'b0;
+      @(posedge clk);
+   endtask
+
+   task receive_random_data(input pid_t pid, input int n);
+      byte data[];
+
+      data=new[n];
+      for(int i=0;i<n;i++) data[i]=$random;
+      receive_data(pid,data);
    endtask
 
    task receive_handshake(input pid_t pid);
       /* PID */
-      repeat(128-1) @(posedge clk);
+      repeat(8*nbit-1) @(posedge clk);
       rx_active<=1'b1;
       rx_valid<=1'b1;
       rx_data <={~pid,pid};
       @(posedge clk) rx_valid<=1'b0;
 
       /* EOP */
-      repeat(32) @(posedge clk);
+      repeat(2*nbit) @(posedge clk);
       rx_active<=1'b0;
+      @(posedge clk);
    endtask
 
    function [4:0] crc5(input [10:0] d);
