@@ -37,6 +37,7 @@ module tb_usb_sie;
    wire         endpo_crc16[num_endp]; // OUT endpoint CRC16 flag
    logic        endpo_ready[num_endp]; // OUT endpoint data ready
 
+
    usb_sie #(num_endp) dut(.*);
 
    initial forever #(tclk/2) clk=~clk;
@@ -52,33 +53,39 @@ module tb_usb_sie;
 
 	assert(crc16('{8'h00,8'h01,8'h02,8'h03})==16'h7aef) else $error("CRC16");
 	assert(crc16('{8'h23,8'h45,8'h67,8'h89})==16'h1c0e) else $error("CRC16");
-	assert(crc16('{})                       ==16'h0000) else $error("CRC16"); // zero length packet
+	assert(crc16()                          ==16'h0000) else $error("CRC16"); // zero length packet
 
 	repeat(3) @(posedge clk);
 	reset=1'b0;
 	#100ns;
 
-	/* SETUP */
-	receive_token(SETUP,device_addr,0);
-	receive_random_data(DATA0,8);
+	/**********************************************************************
+	 * Control Read
+	 **********************************************************************/
 
-	/* OUT */
-	receive_token(OUT,device_addr,1);
-	receive_random_data(DATA0,8);
+	/* Setup Stage */
+	receive_token(SETUP,0,0);
+	receive_data(DATA0,'{8'h80,8'h06,8'h00,8'h01,8'h00,8'h00,8'h08,8'h00}); // GET_DESCRIPTOR
+	send_handshake(ACK);
 
-	receive_token(OUT,device_addr,1);
-	receive_random_data(DATA1,8);
+	/* Data Stage */
+	#10us receive_token(IN,0,0);
+	//send_data(...);
+	receive_handshake(ACK);
+	#5us @(posedge clk) reset=1'b1;@(posedge clk) reset=1'b0; // reset FSM
 
-	receive_token(OUT,device_addr,1);
-	receive_random_data(DATA0,0);
+	/* Status Stage */
+	#10us receive_token(OUT,0,0);
+	receive_data(DATA0); // ZLP
+	send_handshake(ACK);
 
-	#3us $stop;
+	#10us $stop;
      end:main
 
    always @(posedge tx_valid)
      begin:tx
 	/* SYNC */
-	repeat(8*nbit) @(posedge clk);
+	repeat(7*nbit+1) @(posedge clk);
 
 	fork
 	   wait(!tx_valid);
@@ -90,6 +97,14 @@ module tb_usb_sie;
 	   end
 	join_any
      end:tx
+
+   task send_handshake(pid_t pid);
+      do @(posedge clk); while(!tx_valid);
+
+      assert (tx_data=={~pid,pid});
+
+      do @(posedge clk); while(tx_valid);
+   endtask
 
    task receive_token(pid_t pid,logic [6:0] addr,logic [3:0] endp);
       repeat(2) @(posedge clk);
@@ -120,7 +135,7 @@ module tb_usb_sie;
       @(posedge clk);
    endtask
 
-   task receive_data(input pid_t pid,input byte data[]);
+   task receive_data(input pid_t pid,input byte data[]='{});
       /* PID */
       repeat(8*nbit-1) @(posedge clk);
       rx_active<=1'b1;
@@ -188,7 +203,7 @@ module tb_usb_sie;
       crc5=~crc5;
    endfunction
 
-   function [15:0] crc16(input byte d[]);
+   function [15:0] crc16(input byte d[]='{});
       const bit [15:0] crc16_poly=16'b1010000000000001,
 		       crc16_res =16'b1011000000000001;
 
