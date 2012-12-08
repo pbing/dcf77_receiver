@@ -11,40 +11,42 @@ module usb_tx
     output logic    ready); // data has been sent
 
    /* bit/byte enable */
-   logic [3:0] bit_counter;  // 24 MHz/1.5 MHz=16
-   logic [2:0] byte_counter; // 8 bits per byte
+   logic [3:0] clk_counter;  // 24 MHz/1.5 MHz=16
+   logic [2:0] bit_counter;  // 8 bits per byte
    logic       stuffing;     // bit stuffing
    logic [2:0] num_ones;     // number of ones
    logic       en_bit;       // enable bit
+   logic       sent;         // data sent
 
    enum logic [2:0] {RESET,TX_WAIT,SEND_SYNC,TX_DATA_LOAD,TX_DATA_WAIT,SEND_EOP} tx_state,tx_next;
 
    always_ff @(posedge clk)
      if(reset)
        begin
-	  bit_counter <=4'd0;
-	  byte_counter<=3'd0;
+	  clk_counter<=4'd0;
+	  bit_counter<=3'd0;
        end
      else
        begin
 	  if(tx_state==RESET || (!valid && tx_state==TX_WAIT))
 	    begin
-	       bit_counter <=4'd0;
-	       byte_counter<=3'd0;
+	       clk_counter<=4'd0;
+	       bit_counter<=3'd0;
 	    end
 	  else
 	    begin
-	       bit_counter<=bit_counter+2'd1;
+	       clk_counter<=clk_counter+2'd1;
 
-	       if(bit_counter==4'd15 && !stuffing)
-		 byte_counter<=byte_counter+3'd1;
+	       if(clk_counter==4'd15 && !stuffing)
+		 bit_counter<=bit_counter+3'd1;
 	    end
        end
 
    always_comb
      begin
-        en_bit=(tx_state!=RESET && tx_state!=TX_WAIT && bit_counter==4'd0);
-	ready =(en_bit && byte_counter==3'd7 && !stuffing);
+        en_bit=(tx_state!=RESET && tx_state!=TX_WAIT && clk_counter==4'd0);
+	sent  =(en_bit && bit_counter==3'd7);
+	ready =(tx_state!=SEND_SYNC && sent && !stuffing);
      end
 
    /* TX FSM */
@@ -69,14 +71,14 @@ module usb_tx
 	  SEND_SYNC:
 	    begin
 	       d_en=1'b1;
-	       if(ready) tx_next=TX_DATA_LOAD;
+	       if(sent) tx_next=TX_DATA_LOAD;
 	    end
 
 	  TX_DATA_LOAD:
 	    begin
 	       d_en=1'b1;
 	       if(valid && en_bit && !stuffing) tx_next=TX_DATA_WAIT;
-	       if(!valid && byte_counter==3'd1) tx_next=SEND_EOP;
+	       if(!valid && bit_counter==3'd1) tx_next=SEND_EOP;
 	    end
 
 	  TX_DATA_WAIT:
@@ -88,7 +90,7 @@ module usb_tx
 	  SEND_EOP:
 	    begin
 	       d_en=1'b1;
-	       if(en_bit && byte_counter==3'd4) tx_next=TX_WAIT;
+	       if(en_bit && bit_counter==3'd4) tx_next=TX_WAIT;
 	    end
 
 	  default tx_next=RESET;
@@ -101,7 +103,7 @@ module usb_tx
    always_ff @(posedge clk)
      if(reset)
        tx_load<=8'b0;
-     else if(ready)
+     else if(sent)
        tx_load<=data;
 
    always_ff @(posedge clk)
@@ -151,7 +153,7 @@ module usb_tx
      if(tx_state==SEND_EOP)
        /* two bit SE0, one bit J */
        begin
-	  if(byte_counter<3'd3)
+	  if(bit_counter<3'd3)
 	    d_o=SE0;
 	  else
 	    d_o=J;
