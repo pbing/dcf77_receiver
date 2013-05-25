@@ -41,7 +41,7 @@ module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for
    var   pid_t  pid2;   // PID
    logic [15:0] crc16;  // CRC16
 
-   enum integer {IDLE,DO_TOKEN[3],DO_BCINTO[4],DO_BCINTI[100]} state; // FSM states
+   enum int unsigned {IDLE,DO_TOKEN[3],DO_BCINTO[4],DO_BCINTI[100]} state; // FSM states
 
    always_ff @(posedge clk)
      if(reset)

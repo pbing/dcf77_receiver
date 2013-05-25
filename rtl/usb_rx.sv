@@ -19,13 +19,13 @@ module usb_rx
 
    /*************************************************************
     * RX FSM
-    *
-    * Use dummy states to get a state number of powers of two.
-    * Otherwise the synthesis software of Quartus will insert a
-    * modulo-N divider because of rx_state.next().
+    * 
+    * Use exlicite state assings instead of rx_next=rx_state.next()
+    * because automatic FSM detection of Synplify does not work
+    * in this case.
     *************************************************************/
-   enum logic [4:0] {RESET,SYNC[8],RX_DATA_WAIT[8],RX_DATA,STRIP_EOP[2],ERROR,ABORT[1:2],TERMINATE,DUMMY[8]} rx_state,rx_next;
-   logic rcv_bit,rcv_data;
+   enum int unsigned {RESET,SYNC[8],RX_DATA_WAIT[8],RX_DATA,STRIP_EOP[2],ERROR,ABORT[1:2],TERMINATE} rx_state,rx_next;
+   logic             rcv_bit,rcv_data;
 
    always_ff @(posedge clk)
      if(reset)
@@ -36,77 +36,88 @@ module usb_rx
    always_comb
      begin
 	rx_next=rx_state;
-	active=1'b0;
-	rcv_data=1'b0;
-	error=1'b0;
 
-	unique case(rx_state)
+	case(rx_state)
 	  RESET:
 	    if(k) rx_next=SYNC0;
 
-	  SYNC0,SYNC2,SYNC4:
-	    if(j) rx_next=rx_state.next();
+	  SYNC0:
+	    if(j) rx_next=SYNC1;
 	    else  rx_next=RESET;
 
-	  SYNC1,SYNC3,SYNC5,SYNC6:
-	    if(k) rx_next=rx_state.next();
+	  SYNC1:
+	    if(k) rx_next=SYNC2;
+	    else  rx_next=RESET;
+
+	  SYNC2:
+	    if(j) rx_next=SYNC3;
+	    else  rx_next=RESET;
+
+	  SYNC3:
+	    if(k) rx_next=SYNC4;
+	    else  rx_next=RESET;
+
+
+	  SYNC4:
+	    if(j) rx_next=SYNC5;
+	    else  rx_next=RESET;
+
+	  SYNC5:
+	    if(k) rx_next=SYNC6;
+	    else  rx_next=RESET;
+
+	  SYNC6:
+	    if(k) rx_next=SYNC7;
 	    else  rx_next=RESET;
 
 	  SYNC7:
 	    rx_next=RX_DATA_WAIT0;
 
-	  RX_DATA_WAIT0,RX_DATA_WAIT1,RX_DATA_WAIT2,RX_DATA_WAIT3,
-	    RX_DATA_WAIT4,RX_DATA_WAIT5,RX_DATA_WAIT6:
-	      begin
-		 active=1'b1;
-		 if(rcv_bit) rx_next=rx_state.next();
-	      end
+	  RX_DATA_WAIT0:
+	    if(rcv_bit) rx_next=RX_DATA_WAIT1;
+
+	  RX_DATA_WAIT1:
+	    if(rcv_bit) rx_next=RX_DATA_WAIT2;
+
+	  RX_DATA_WAIT2:
+	    if(rcv_bit) rx_next=RX_DATA_WAIT3;
+
+	  RX_DATA_WAIT3:
+	    if(rcv_bit) rx_next=RX_DATA_WAIT4;
+
+	  RX_DATA_WAIT4:
+	    if(rcv_bit) rx_next=RX_DATA_WAIT5;
+
+	  RX_DATA_WAIT5:
+	    if(rcv_bit) rx_next=RX_DATA_WAIT6;
+
+	  RX_DATA_WAIT6:
+	    if(rcv_bit) rx_next=RX_DATA_WAIT7;
 
 	  RX_DATA_WAIT7:
-	    begin
-	       active=1'b1;
-	       rcv_data=1'b1;
-	       if(se0)
-		 rx_next=STRIP_EOP0;
-	       else if(rcv_bit)
-		 rx_next=RX_DATA;
-	    end
+	    if(se0)
+	      rx_next=STRIP_EOP0;
+	    else if(rcv_bit)
+	      rx_next=RX_DATA;
 
 	  RX_DATA:
-	    begin
-	       active=1'b1;
-	       if(rcv_bit) rx_next=RX_DATA_WAIT1;
-	    end
+	    if(rcv_bit) rx_next=RX_DATA_WAIT1;
 
 	  STRIP_EOP0:
-	    begin
- 	       active=1'b1;
-	       rx_next=STRIP_EOP1;
-	    end
+	    rx_next=STRIP_EOP1;
 
 	  STRIP_EOP1:
-	    /* enable active for one more clock */
-	    begin
- 	       active=1'b1;
-	       rx_next=RESET;
-	    end
+	    rx_next=RESET;
 
 	  ERROR:
-	    begin
-	       active=1'b1;
-	       error=1'b1;
-	       rx_next=ABORT1; // choose ABORT1 or ABORT2
-	    end
+	    rx_next=ABORT1; // choose ABORT1 or ABORT2
 
 	  ABORT1:
 	    rx_next=RESET;
 
 	  ABORT2:
-	    begin
-	       active=1'b1;
-	       if(j) // IDLE
-		 rx_next=TERMINATE;
-	    end
+	    if(j) // IDLE
+	      rx_next=TERMINATE;
 
 	  TERMINATE:
 	    rx_next=RESET;
@@ -114,6 +125,15 @@ module usb_rx
 	  default
 	    rx_next=RESET;
 	endcase
+     end
+
+   always_comb
+     begin
+	active  =(rx_state!=RESET || rx_state!=SYNC0 || rx_state!=SYNC1 || 
+		  rx_state!=SYNC2 || rx_state!=SYNC3 || rx_state!=SYNC4 || 
+		  rx_state!=SYNC5 || rx_state!=SYNC6 || rx_state!=SYNC7);
+	rcv_data=(rx_state==RX_DATA_WAIT7);	
+	error   =(rx_state==ERROR);
      end
 
    /*************************************************************
