@@ -1,13 +1,13 @@
 /* 10 ms clock enable */
 
-module clk_en(input        rst,     // reset
+module clk_en(input        reset,   // reset
 	      input        clk,     // clock (24 MHz)
 	      output logic clk_en); // 10 ms clock enable
 
    logic [17:0] count_10ms; // 10 ms counter
 
    always_ff @(posedge clk)
-     if(rst)
+     if(reset)
        count_10ms<='0;
      else if(clk_en)
        count_10ms<='0;

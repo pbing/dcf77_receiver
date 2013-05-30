@@ -1,6 +1,6 @@
 /* DCF77 receiver */
 
-module dcf77(input               rst,       // reset
+module dcf77(input               reset,     // reset
 	     input               clk,       // clock (24 MHz)
 	     input               clk_en,    // clock enable (10 ms)
 	     input               rx,        // pulse 100 ms=0, pulse 200 ms=1
@@ -21,7 +21,7 @@ module dcf77(input               rst,       // reset
 	logic [7:0]  counter_start[1:2];  // counter for start detection
 	logic        start;               // start of frame
 
-	if(rst)
+	if(reset)
 	  begin
 	     rx_s<='0;
 	     rx_d<='0;

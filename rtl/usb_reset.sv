@@ -22,4 +22,3 @@ module usb_reset
 
    always_comb reset_o=(reset_i || (counter==12'h001));
 endmodule
-

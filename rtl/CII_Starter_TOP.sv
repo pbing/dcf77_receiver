@@ -1,4 +1,21 @@
-/* FPGA Top level */
+/* FPGA Top level
+ *
+ * KEY[0]       external reset
+ *
+ * SW[0]        display seconds
+ * SW[1]        display week day and day of month month
+ * SW[2]        display year and month
+ * SW[8]        0:normal speed   1:extended speed
+ * SW[9]        0:free running   1:sync with DCF77
+ *
+ * LEDR[1]      DCF77 ERROR
+ * LEDR[0]      DCF77 RX pulse
+ *
+ * GPIO_1[26]   3.3 V at 1.5 kOhm for USB low-speed detection. Low during external reset for starting new communication.
+ * GPIO_1[32]   USB-D+
+ * GPIO_1[34]   USB-D-≈
+ * GPIO_1[35]   DCF77 RX pulse
+ */
 
 module CII_Starter_TOP (/* Clock Input */
                         input [1:0]   CLOCK_24,    // 24 MHz
@@ -13,10 +30,10 @@ module CII_Starter_TOP (/* Clock Input */
                         input [9:0]   SW,          // Toggle Switch[9:0]
 
                         /* 7-SEG Display */
-                        output logic [6:0]  HEX0,  // Seven Segment Digit 0
-                        output logic [6:0]  HEX1,  // Seven Segment Digit 1
-                        output logic [6:0]  HEX2,  // Seven Segment Digit 2
-                        output logic [6:0]  HEX3,  // Seven Segment Digit 3
+                        output [6:0]  HEX0,        // Seven Segment Digit 0
+                        output [6:0]  HEX1,        // Seven Segment Digit 1
+                        output [6:0]  HEX2,        // Seven Segment Digit 2
+                        output [6:0]  HEX3,        // Seven Segment Digit 3
 
                         /* LED */
                         output logic [7:0]  LEDG,  // LED Green[7:0]
@@ -102,7 +119,7 @@ module CII_Starter_TOP (/* Clock Input */
    import types::*;
 
    /* common signals */
-   wire rst;
+   wire reset;
    wire clk;
 
    /* DCF77 receiver and clock */
@@ -139,38 +156,41 @@ module CII_Starter_TOP (/* Clock Input */
    wire       usb_endpo_crc16[num_endp];  // OUT endpoint CRC16 flag
    wire       usb_endpo_ready[num_endp];  // OUT endpoint data ready
 
-   /* synchronize reset */
-   logic [0:1] rst_s;
-   always_ff @(posedge clk)
-     rst_s<={~KEY[0],rst_s[0]};
-
    /* I/O assignments */
-   assign rst       =rst_s[1];
-   assign clk       =CLOCK_24[0];
-
-   assign dcf77_rx  =GPIO_1[35];
-   assign LEDR[1]   =dcf77_error;
-   assign LEDR[0]   =dcf77_rx;
-
+   assign clk                    =CLOCK_24[0];
+   assign dcf77_rx               =GPIO_1[35];
+   assign LEDR[1]                =dcf77_error;
+   assign LEDR[0]                =dcf77_rx;
    assign usb_d_i                =d_port_t'({GPIO_1[34],GPIO_1[32]});
    assign {GPIO_1[34],GPIO_1[32]}=(usb_d_en)?usb_d_o:2'bz;
+   assign GPIO_1[26]             =(reset)?1'b0:1'b1;
 
-   assign GPIO_1[26]=(rst_s)?1'b0:1'b1;                  // 3.3 V at 1.5 kOhm for USB low-speed detection
+   /********************************************************************************
+    * Syncronize reset
+    ********************************************************************************/
+
+   sync_reset sync_reset(.key(KEY[0]),.*);
+
+   /********************************************************************************
+    * HEX display
+    ********************************************************************************/
+
+   display_decoder display_decoder(.SW(SW[2:0]),.*);
 
    /********************************************************************************
     * DCF77 receiver and clock
     ********************************************************************************/
 
-   wire clock_clk_en     =clk_en_10ms | SW[8]; // SW[8] 0:normal speed, 1:extended speed
-   wire clock_dscf77_sync=dcf77_sync  & SW[9]; // SW[9] 0:free running  1:sync with DCF77
+   wire clock_clk_en      = clk_en_10ms | SW[8];
+   wire clock_dscf77_sync = dcf77_sync  & SW[9];
 
-   clk_en clk_en(.rst(rst),.clk(clk),.clk_en(clk_en_10ms));
+   clk_en clk_en(.reset(reset),.clk(clk),.clk_en(clk_en_10ms));
 
-   dcf77 dcf77(.rst(rst),.clk(clk),.clk_en(clk_en_10ms),
+   dcf77 dcf77(.reset(reset),.clk(clk),.clk_en(clk_en_10ms),
 	       .rx(dcf77_rx),.data_hold(dcf77_data),
 	       .error(dcf77_error),.sync(dcf77_sync));
 
-   clock clock(.rst(rst),.clk(clk),.clk_en(clock_clk_en),
+   clock clock(.reset(reset),.clk(clk),.clk_en(clock_clk_en),
 	       .dcf77_sync(clock_dscf77_sync),
 	       .dcf77_year(dcf77_data[57:50]),
 	       .dcf77_month({3'b0,dcf77_data[49:45]}),
@@ -186,46 +206,11 @@ module CII_Starter_TOP (/* Clock Input */
 	       .minute(minute),
 	       .second(second));
 
-   /* Switch control for 7-segment display */
-   always_comb
-     priority case(1'b1)
-       SW[0]:
-	 begin
-	    HEX3=bcd_digit(0);
-	    HEX2=bcd_digit(0);
-	    HEX1=bcd_digit(second[1]);
-	    HEX0=bcd_digit(second[0]);
-	 end
-
-       SW[1]:
-	 begin
-	    {HEX3,HEX2}=week_day_chars(day_of_week);
-	    HEX1=bcd_digit(day[1]);
-	    HEX0=bcd_digit(day[0]);
-	 end
-
-       SW[2]:
-	 begin
-	    HEX3=bcd_digit(year[1]);
-	    HEX2=bcd_digit(year[0]);
-	    HEX1=bcd_digit(month[1]);
-	    HEX0=bcd_digit(month[0]);
-	 end
-
-       default
-	 begin
-	    HEX3=bcd_digit(hour[1]);
-	    HEX2=bcd_digit(hour[0]);
-	    HEX1=bcd_digit(minute[1]);
-	    HEX0=bcd_digit(minute[0]);
-	 end
-     endcase
-
    /********************************************************************************
     * USB Interface
     ********************************************************************************/
 
-   usb_transceiver usb_transceiver (.reset(rst),.clk(clk),
+   usb_transceiver usb_transceiver (.reset(reset),.clk(clk),
 				    .d_i(usb_d_i),.d_o(usb_d_o),.d_en(usb_d_en),.usb_reset(usb_reset),
 				    .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
 				    .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
@@ -236,49 +221,4 @@ module CII_Starter_TOP (/* Clock Input */
 			       .device_addr(usb_device_addr),
 			       .endpi_data(usb_endpi_data),.endpi_valid(usb_endpi_data),.endpi_crc16(usb_endpi_data),.endpi_ready(usb_endpi_data),
 			       .endpo_data(usb_endpo_data),.endpo_valid(usb_endpo_valid),.endpo_crc16(usb_endpo_crc16),.endpo_ready(usb_endpo_ready));
-
-   /********************************************************************************
-    * Functions
-    ********************************************************************************/
-
-   /* HEX display digit
-    *      A
-    *    F   B
-    *      G
-    *    E   C
-    *      D
-    */
-   function [6:0] bcd_digit(input bcd_t i);
-      bit [6:0] digit['h10]='{/*  GFEDCBA */
-			      ~7'b0111111,  // 0
-			      ~7'b0000110,  // 1
-			      ~7'b1011011,  // 2
-			      ~7'b1001111,  // 3
-			      ~7'b1100110,  // 4
-			      ~7'b1101101,  // 5
-			      ~7'b1111101,  // 6
-			      ~7'b0000111,  // 7
-			      ~7'b1111111,  // 8
-			      ~7'b1101111,  // 9
-			      ~7'b1110111,  // A
-			      ~7'b1111100,  // b
-			      ~7'b0111001,  // C
-			      ~7'b1011110,  // d
-			      ~7'b1111001,  // E
-			      ~7'b1110001}; // F
-      bcd_digit=digit[i];
-   endfunction
-
-   function [13:0] week_day_chars(input [2:0] i);
-      bit [13:0] week_day[8]='{/*   GFEDCBA_GFEDCBA */
-			       ~14'b1000000_1000000,  // --
-			       ~14'b0110111_1011100,  // Mo
-			       ~14'b1111000_0011100,  // tu
-			       ~14'b0111110_1111001,  // WE
-			       ~14'b1111000_1110100,  // th
-			       ~14'b1110001_1010000,  // Fr
-			       ~14'b1101101_1110111,  // SA
-                               ~14'b1101101_1011100}; // So
-      week_day_chars=week_day[i];
-   endfunction
 endmodule

@@ -4,19 +4,19 @@ module usb_controller
   import types::*;
    (input              reset,         // system reset
     input              clk,           // system clock (24 MHz)
-				      
-    /* TX */			      
+
+    /* TX */
     output       [7:0] tx_data,       // data from SIE
     output             tx_valid,      // rise:SYNC,1:send data,fall:EOP
     input              tx_ready,      // data has been sent
-				      
-    /* RX */			      
+
+    /* RX */
     input        [7:0] rx_data,       // data to SIE
     input              rx_active,     // active between SYNC und EOP
     input              rx_valid,      // data valid pulse
     input              rx_error,      // error detected
-				      
-    /* Device */		      
+
+    /* Device */
     output pid_t       pid,           // PID
     output logic       pid_valid,     // PID valid
     output logic [6:0] address,       // device address

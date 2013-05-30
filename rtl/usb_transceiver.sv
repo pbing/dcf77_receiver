@@ -27,7 +27,7 @@ module usb_transceiver
    d_port_t line_state;        // synchronized D+,D-
 
    usb_reset ubs_reset (.reset_i(reset),.clk(clk),
-			.line_state(line_state),.reset_o(usb_reset)); 
+			.line_state(line_state),.reset_o(usb_reset));
 
    usb_cdr usb_cdr(.reset(reset),.clk(clk),
 		   .d(d_i),.q(rx_d_i),

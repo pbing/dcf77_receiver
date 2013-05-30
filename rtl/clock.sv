@@ -2,7 +2,7 @@
 
 module clock
   import types::bcd_t;
-   (input  rst,    // reset
+   (input  reset,  // reset
     input  clk,    // clock (24 MHz)
     input  clk_en, // clock enable (10 ms)
 
@@ -15,7 +15,7 @@ module clock
     input  bcd_t [1:0] dcf77_hour,
     input  bcd_t [1:0] dcf77_minute,
 
-    /* synchronized free running clock */
+    /* DCF77 output or synchronized free running clock */
     output bcd_t [1:0] year,
     output bcd_t [1:0] month,
     output bcd_t [1:0] day,
@@ -28,7 +28,7 @@ module clock
      begin:main
 	logic [6:0] counter;
 
-	if(rst)
+	if(reset)
 	  begin
 	     counter<='0;
 	     year<='0;

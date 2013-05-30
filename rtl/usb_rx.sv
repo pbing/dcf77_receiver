@@ -19,7 +19,7 @@ module usb_rx
 
    /*************************************************************
     * RX FSM
-    * 
+    *
     * Use exlicite state assings instead of rx_next=rx_state.next()
     * because automatic FSM detection of Synplify does not work
     * in this case.
@@ -129,10 +129,10 @@ module usb_rx
 
    always_comb
      begin
-	active  =(rx_state!=RESET || rx_state!=SYNC0 || rx_state!=SYNC1 || 
-		  rx_state!=SYNC2 || rx_state!=SYNC3 || rx_state!=SYNC4 || 
+	active  =(rx_state!=RESET || rx_state!=SYNC0 || rx_state!=SYNC1 ||
+		  rx_state!=SYNC2 || rx_state!=SYNC3 || rx_state!=SYNC4 ||
 		  rx_state!=SYNC5 || rx_state!=SYNC6 || rx_state!=SYNC7);
-	rcv_data=(rx_state==RX_DATA_WAIT7);	
+	rcv_data=(rx_state==RX_DATA_WAIT7);
 	error   =(rx_state==ERROR);
      end
 
