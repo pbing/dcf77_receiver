@@ -1,15 +1,27 @@
 /* DCF77 receiver */
 
-module dcf77(input               reset,     // reset
-	     input               clk,       // clock (24 MHz)
-	     input               clk_en,    // clock enable (10 ms)
-	     input               rx,        // pulse 100 ms=0, pulse 200 ms=1
-	     output logic [58:0] data_hold, // data hold register
-	     output logic        error,     // error flag
-	     output logic        sync);     // synchronize clock
+module dcf77(input               reset,      // reset
+	     input               clk,        // clock (24 MHz)
+	     input               clk_en,     // clock enable (10 ms)
+	     input               rx,         // pulse 100 ms=0, pulse 200 ms=1
+	     output logic [58:0] data_hold,  // data hold register
+	     output logic        error,      // error flag
+	     output logic        sync,       // synchronize clock
+	     if_date_time        date_time); // interface to clock module
 
    logic [58:0] data_shift;       // data shift register
    logic        valid,data_valid; // received data frame is valid
+
+   always_comb
+     begin:intrface
+	date_time.year       =      data_hold[57:50];
+	date_time.month      ={3'b0,data_hold[49:45]};
+	date_time.day        ={2'b0,data_hold[41:36]};
+	date_time.day_of_week=      data_hold[44:42];
+	date_time.hour       ={2'b0,data_hold[34:29]};
+	date_time.minute     ={1'b0,data_hold[27:21]};
+     end:intrface
+   
 
    always_ff @(posedge clk)
      begin:main

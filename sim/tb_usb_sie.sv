@@ -8,37 +8,20 @@ module tb_usb_sie;
 		  tclk=1s/24.0e6,
 		  nbit=tusb/tclk;
 
-   localparam       num_endp=3;        // number of endpoints (1...3 for low-speed devices)
    localparam [6:0] device_addr=42;    // assigned device address
+   localparam       num_endpi=1;       // number of in endpoints (1...3 for low-speed devices)
+   localparam       num_endpo=2;       // number of out endpoints (1...3 for low-speed devices)
 
    import types::*;
 
    bit          reset=1'b1;            // system reset
    bit          clk;                   // system clock (24 MHz)
 
-   /* Transceiver */
-   wire   [7:0] tx_data;               // data from SIE
-   wire         tx_valid;              // rise:SYNC,1:send data,fall:EOP
-   bit          tx_ready;              // data has been sent
-
-   bit    [7:0] rx_data;               // data to SIE
-   bit          rx_active;             // active between SYNC und EOP
-   bit          rx_valid;              // data valid pulse
-   bit          rx_error;              // error detected
-
-   /* Device */
-   logic  [7:0] endpi_data[num_endp];  // IN endpoint data input
-   logic        endpi_valid[num_endp]; // IN endpoint data valid
-   logic        endpi_crc16[num_endp]; // IN endpoint calculate CRC16
-   wire         endpi_ready[num_endp]; // IN endpoint data ready
-
-   wire   [7:0] endpo_data[num_endp];  // OUT endpoint data output
-   wire         endpo_valid[num_endp]; // OUT endpoint data valid
-   wire         endpo_crc16[num_endp]; // OUT endpoint CRC16 flag
-   logic        endpo_ready[num_endp]; // OUT endpoint data ready
-
-
-   usb_sie #(num_endp) dut(.*);
+   if_transceiver             transceiver();
+   if_endpoint    #(num_endpi) endpi();
+   if_endpoint    #(num_endpo) endpo();
+   
+   usb_sie        #(num_endpi,num_endpo) dut(.*);
 
    initial forever #(tclk/2) clk=~clk;
 
@@ -82,87 +65,87 @@ module tb_usb_sie;
 	#10us $stop;
      end:main
 
-   always @(posedge tx_valid)
+   always @(posedge transceiver.tx_valid)
      begin:tx
 	/* SYNC */
 	repeat(7*nbit+1) @(posedge clk);
 
 	fork
-	   wait(!tx_valid);
+	   wait(!transceiver.tx_valid);
 
 	   begin
 	      repeat(8*nbit-1) @(posedge clk);
-	      tx_ready<=1'b1;
-	      @(posedge clk) tx_ready<=1'b0;
+	      transceiver.tx_ready<=1'b1;
+	      @(posedge clk) transceiver.tx_ready<=1'b0;
 	   end
 	join_any
      end:tx
 
    task send_handshake(pid_t pid);
-      do @(posedge clk); while(!tx_valid);
+      do @(posedge clk); while(!transceiver.tx_valid);
 
-      assert (tx_data=={~pid,pid});
+      assert (transceiver.tx_data=={~pid,pid});
 
-      do @(posedge clk); while(tx_valid);
+      do @(posedge clk); while(transceiver.tx_valid);
    endtask
 
    task receive_token(pid_t pid,logic [6:0] addr,logic [3:0] endp);
       repeat(2) @(posedge clk);
-      wait(!tx_valid);
+      wait(!transceiver.tx_valid);
 
       /* PID */
       repeat(8*nbit-1) @(posedge clk);
-      rx_active<=1'b1;
-      rx_valid<=1'b1;
-      rx_data <={~pid,pid};
-      @(posedge clk) rx_valid<=1'b0;
+      transceiver.rx_active<=1'b1;
+      transceiver.rx_valid<=1'b1;
+      transceiver.rx_data <={~pid,pid};
+      @(posedge clk) transceiver.rx_valid<=1'b0;
 
       /* ADDR and first bit of ENDP */
       repeat(8*nbit-1) @(posedge clk);
-      rx_valid<=1'b1;
-      rx_data <={endp[0],addr};
-      @(posedge clk) rx_valid<=1'b0;
+      transceiver.rx_valid<=1'b1;
+      transceiver.rx_data <={endp[0],addr};
+      @(posedge clk) transceiver.rx_valid<=1'b0;
 
       /* Rest of ENDP and CRC5 */
       repeat(8*nbit-1) @(posedge clk);
-      rx_valid<=1'b1;
-      rx_data <={crc5({endp,addr}),endp[3:1]};
-      @(posedge clk) rx_valid<=1'b0;
+      transceiver.rx_valid<=1'b1;
+      transceiver.rx_data <={crc5({endp,addr}),endp[3:1]};
+      @(posedge clk) transceiver.rx_valid<=1'b0;
 
       /* EOP */
       repeat(2*nbit) @(posedge clk);
-      rx_active<=1'b0;
+      transceiver.rx_active<=1'b0;
       @(posedge clk);
    endtask
 
    task receive_data(input pid_t pid,input byte data[]='{});
       /* PID */
       repeat(8*nbit-1) @(posedge clk);
-      rx_active<=1'b1;
-      rx_valid<=1'b1;
-      rx_data <={~pid,pid};
-      @(posedge clk) rx_valid<=1'b0;
+      transceiver.rx_active<=1'b1;
+      transceiver.rx_valid<=1'b1;
+      transceiver.rx_data <={~pid,pid};
+      @(posedge clk) transceiver.rx_valid<=1'b0;
 
       foreach(data[i])
 	begin
 	   repeat(8*nbit-1) @(posedge clk);
-	   rx_valid<=1'b1;
-	   rx_data <=data[i];
-	   @(posedge clk) rx_valid<=1'b0;
+	   transceiver.rx_valid<=1'b1;
+	   transceiver.rx_data <=data[i];
+	   @(posedge clk) transceiver.rx_valid<=1'b0;
 	end
 
       /* CRC16 */
       for(int i=0;i<16;i+=8)
 	begin
 	   repeat(8*nbit-1) @(posedge clk);
-	   rx_valid<=1'b1;
-	   rx_data <=crc16(data)[7+i-:8];
-	   @(posedge clk) rx_valid<=1'b0;
+	   transceiver.rx_valid<=1'b1;
+	   transceiver.rx_data <=crc16(data)[7+i-:8];
+	   @(posedge clk) transceiver.rx_valid<=1'b0;
 	end
 
       /* EOP */
       repeat(2*nbit) @(posedge clk);
-      rx_active<=1'b0;
+      transceiver.rx_active<=1'b0;
       @(posedge clk);
    endtask
 
@@ -177,14 +160,14 @@ module tb_usb_sie;
    task receive_handshake(input pid_t pid);
       /* PID */
       repeat(8*nbit-1) @(posedge clk);
-      rx_active<=1'b1;
-      rx_valid<=1'b1;
-      rx_data <={~pid,pid};
-      @(posedge clk) rx_valid<=1'b0;
+      transceiver.rx_active<=1'b1;
+      transceiver.rx_valid<=1'b1;
+      transceiver.rx_data <={~pid,pid};
+      @(posedge clk) transceiver.rx_valid<=1'b0;
 
       /* EOP */
       repeat(2*nbit) @(posedge clk);
-      rx_active<=1'b0;
+      transceiver.rx_active<=1'b0;
       @(posedge clk);
    endtask
 

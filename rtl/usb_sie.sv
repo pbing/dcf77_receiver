@@ -1,31 +1,18 @@
 /* USB Serial Interface Controller */
 
-module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for low-speed devices)
+module usb_sie #(parameter 
+		 num_endpi=1, // number of in endpoints (1...3 for low-speed devices)
+		 num_endpo=1) // number of out endpoints (1...3 for low-speed devices)
    (input              reset,                  // system reset
     input              clk,                    // system clock (24 MHz)
 
-    /* Transceiver */
-    output logic [7:0] tx_data,                // data from SIE
-    output logic       tx_valid,               // rise:SYNC,1:send data,fall:EOP
-    input              tx_ready,               // data has been sent
-
-    input        [7:0] rx_data,                // data to SIE
-    input              rx_active,              // active between SYNC und EOP
-    input              rx_valid,               // data valid pulse
-    input              rx_error,               // error detected
+    if_transceiver     transceiver,
 
     /* Device */
     input        [6:0] device_addr,            // assigned device address
 
-    input        [7:0] endpi_data[num_endp],   // IN endpoint data input
-    input              endpi_valid[num_endp],  // IN endpoint data valid
-    input              endpi_crc16[num_endp],  // IN endpoint calculate CRC16
-    (* noprune *) output logic       endpi_ready[num_endp],  // IN endpoint data ready
-
-    (* noprune *) output logic [7:0] endpo_data[num_endp],   // OUT endpoint data output
-    (* noprune *) output logic       endpo_valid[num_endp],  // OUT endpoint data valid
-    (* noprune *) output logic       endpo_crc16[num_endp],  // OUT endpoint CRC16 flag
-    input              endpo_ready[num_endp]); // OUT endpoint data ready
+    if_endpoint        endpi,
+    if_endpoint        endpo);
 
    import types::*;
 
@@ -46,14 +33,15 @@ module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for
    always_ff @(posedge clk)
      if(reset)
        begin
-	  for(int i=0;i<num_endp;i++)
+	  for(int i=0;i<num_endpi;i++)
+	       endpi.ready[i]<=1'b0;
+	  for(int i=0;i<num_endpo;i++)
 	    begin
-	       endpi_ready[i]<=1'b0;
-	       endpo_data[i] <=8'h0;
-	       endpo_valid[i]<=1'b0;
+	       endpo.data[i] <=8'h0;
+	       endpo.valid[i]<=1'b0;
 	    end
-	  tx_data   <=8'h0;
-	  tx_valid  <=1'b0;
+	  transceiver.tx_data   <=8'h0;
+	  transceiver.tx_valid  <=1'b0;
 	  token.pid <=RESERVED;
 	  token.addr<=7'd0;
 	  token.endp<=4'd0;
@@ -64,10 +52,10 @@ module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for
        end
      else
        begin
-	  tx_valid<=1'b0;
-	  for(int i=0;i<num_endp;i++)
+	  transceiver.tx_valid<=1'b0;
+	  for(int i=0;i<num_endpo;i++)
 	    begin
-	       endpo_valid[i]<=1'b0;
+	       endpo.valid[i]<=1'b0;
 	    end
 
 	  case(state)
@@ -75,24 +63,24 @@ module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for
 	      begin
 		 crc16<=16'hffff;
 
-		 if(rx_valid && valid_pid(rx_data))
+		 if(transceiver.rx_valid && valid_pid(transceiver.rx_data))
 		   begin
-		      token.pid<=pid_t'(rx_data[3:0]);
+		      token.pid<=pid_t'(transceiver.rx_data[3:0]);
 		      state    <=DO_TOKEN0;
 		   end
 	      end
 
 	    DO_TOKEN0:
-	      if(rx_valid)
+	      if(transceiver.rx_valid)
 		begin
-		   {token.endp[0],token.addr}<=rx_data;
+		   {token.endp[0],token.addr}<=transceiver.rx_data;
 		   state<=DO_TOKEN1;
 		end
 
 	    DO_TOKEN1:
-	      if(rx_valid)
+	      if(transceiver.rx_valid)
 		begin
-		   {token.crc5,token.endp[3:1]}<=rx_data;
+		   {token.crc5,token.endp[3:1]}<=transceiver.rx_data;
 		   state<=DO_TOKEN2;
 		end
 
@@ -109,13 +97,13 @@ module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for
 	      end
 
 	    DO_BCINTO0:
-	      if(rx_valid)
+	      if(transceiver.rx_valid)
 		begin
 		   state<=IDLE;
 
-		   if(valid_pid(rx_data))
+		   if(valid_pid(transceiver.rx_data))
 		     begin
-			pid2 <=pid_t'(rx_data[3:0]);
+			pid2 <=pid_t'(transceiver.rx_data[3:0]);
 			state<=DO_BCINTO1;
 		     end
 		end
@@ -131,13 +119,13 @@ module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for
 	      end
 
 	    DO_BCINTO2:
-	      if(rx_active)
+	      if(transceiver.rx_active)
 		begin
-		   if(rx_valid)
+		   if(transceiver.rx_valid)
 		     begin
-			endpo_data[token.endp] <=rx_data;
-			endpo_valid[token.endp]<=1'b1;
-			crc16                  <=step_crc16(rx_data);
+			endpo.data[token.endp] <=transceiver.rx_data;
+			endpo.valid[token.endp]<=1'b1;
+			crc16                  <=step_crc16(transceiver.rx_data);
 		     end
 		end
 	      else
@@ -145,10 +133,10 @@ module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for
 
 	    DO_BCINTO3:
 	      begin
-		 tx_data <=tx_pid(ACK);
-		 tx_valid<=1'b1;
+		 transceiver.tx_data <=tx_pid(ACK);
+		 transceiver.tx_valid<=1'b1;
 
-		 if(tx_ready)
+		 if(transceiver.tx_ready)
 		   state<=IDLE;
 	      end
 
@@ -157,11 +145,11 @@ module usb_sie #(parameter num_endp=1)         // number of endpoints (1...3 for
        end
 
    always_comb
-     for(int i=0;i<num_endp;i++)
+     for(int i=0;i<num_endpo;i++)
        if(i==token.endp)
-	 endpo_crc16[i]=valid_crc16();
+	 endpo.crc16[i]=valid_crc16();
        else
-	 endpo_crc16[i]=1'b0;
+	 endpo.crc16[i]=1'b0;
 
    /************************************************************************
     * Functions

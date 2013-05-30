@@ -2,27 +2,31 @@
 
 module clock
   import types::bcd_t;
-   (input  reset,  // reset
-    input  clk,    // clock (24 MHz)
-    input  clk_en, // clock enable (10 ms)
+   (input        reset,      // reset
+    input        clk,        // clock (24 MHz)
+    input        clk_en,     // clock enable (10 ms)
+    input        dcf77_sync, // sync pulse from DCF77 module
+    if_date_time dcf77,      // date & time from DCF77 module
+    if_date_time clock);     // date & time from synchronized clock
 
-    /* from DCF77 module */
-    input              dcf77_sync,
-    input  bcd_t [1:0] dcf77_year,
-    input  bcd_t [1:0] dcf77_month,
-    input  bcd_t [1:0] dcf77_day,
-    input        [2:0] dcf77_day_of_week,
-    input  bcd_t [1:0] dcf77_hour,
-    input  bcd_t [1:0] dcf77_minute,
+   bcd_t [1:0]  year;
+   bcd_t [1:0]  month;
+   bcd_t [1:0]  day;
+   bcd_t [1:0]  hour;
+   bcd_t [1:0]  minute;
+   bcd_t [1:0]  second;
+   logic [2:0]  day_of_week;
 
-    /* DCF77 output or synchronized free running clock */
-    output bcd_t [1:0] year,
-    output bcd_t [1:0] month,
-    output bcd_t [1:0] day,
-    output logic [2:0] day_of_week,
-    output bcd_t [1:0] hour,
-    output bcd_t [1:0] minute,
-    output bcd_t [1:0] second);
+   always_comb
+     begin:intrface
+	clock.year       =year;
+	clock.month      =month;
+	clock.day        =day;
+	clock.day_of_week=day_of_week;
+	clock.hour       =hour;
+	clock.minute     =minute;
+	clock.second     =second;
+     end:intrface
 
    always_ff @(posedge clk)
      begin:main
@@ -30,27 +34,27 @@ module clock
 
 	if(reset)
 	  begin
-	     counter<='0;
-	     year<='0;
-	     month<={bcd_t'(0),bcd_t'(1)};
-	     day<={bcd_t'(0),bcd_t'(1)};
+	     counter    <='0;
+	     year       <='0;
+	     month      <={bcd_t'(0),bcd_t'(1)};
+	     day        <={bcd_t'(0),bcd_t'(1)};
 	     day_of_week<=3'd1;
-	     hour<='0;
-	     minute<='0;
-	     second<='0;
+	     hour       <='0;
+	     minute     <='0;
+	     second     <='0;
 	  end
 	else if(clk_en)
 	  begin
 	     if(dcf77_sync)
 	       begin
-		  counter<=7'd7; // try to synchronize of rising edge of DCF77-RX
-		  year<=dcf77_year;
-		  month<=dcf77_month;
-		  day<=dcf77_day;
-		  day_of_week<=dcf77_day_of_week;
-		  hour<=dcf77_hour;
-		  minute<=dcf77_minute;
-		  second<='0;
+		  counter    <=7'd7; // try to synchronize of rising edge of DCF77-RX
+		  year       <=dcf77.year;
+		  month      <=dcf77.month;
+		  day        <=dcf77.day;
+		  day_of_week<=dcf77.day_of_week;
+		  hour       <=dcf77.hour;
+		  minute     <=dcf77.minute;
+		  second     <='0;
 	       end
 	     else
 	       begin

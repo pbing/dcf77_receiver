@@ -113,8 +113,9 @@ module CII_Starter_TOP (/* Clock Input */
                         inout [35:0]  GPIO_0,      // GPIO Connection 0
                         inout [35:0]  GPIO_1);     // GPIO Connection 1
 
-   localparam       num_endp=2;         // number of endpoints (1...3 for low-speed devices)
    localparam [6:0] usb_device_addr=42; // assigned device address
+   localparam       num_endpi=3;        // number of in endpoints (1...3 for low-speed devices)
+   localparam       num_endpo=3;        // number of out endpoints (1...3 for low-speed devices)
 
    import types::*;
 
@@ -136,26 +137,6 @@ module CII_Starter_TOP (/* Clock Input */
    logic      usb_d_en;       // USB port D+,D- (enable)
    logic      usb_reset;      // USB reset due to SE0 for 10 ms
 
-   wire [7:0] usb_tx_data;    // data from SIE
-   wire       usb_tx_valid;   // rise:SYNC,1:send data,fall:EOP
-   wire       usb_tx_ready;   // DEBUG data has been sent
-
-   wire [7:0] usb_rx_data;    // data to SIE
-   wire       usb_rx_active;  // active between SYNC und EOP
-   wire       usb_rx_valid;   // data valid pulse
-   wire       usb_rx_error;   // error detected
-
-   /* USB Device */
-   wire [7:0] usb_endpi_data[num_endp];   // IN endpoint data wire
-   wire       usb_endpi_valid[num_endp];  // IN endpoint data valid
-   wire       usb_endpi_crc16[num_endp];  // IN endpoint calculate CRC16
-   wire       usb_endpi_ready[num_endp];  // IN endpoint data ready
-
-   wire [7:0] usb_endpo_data[num_endp];   // OUT endpoint data output
-   wire       usb_endpo_valid[num_endp];  // OUT endpoint data valid
-   wire       usb_endpo_crc16[num_endp];  // OUT endpoint CRC16 flag
-   wire       usb_endpo_ready[num_endp];  // OUT endpoint data ready
-
    /* I/O assignments */
    assign clk                    =CLOCK_24[0];
    assign dcf77_rx               =GPIO_1[35];
@@ -166,59 +147,47 @@ module CII_Starter_TOP (/* Clock Input */
    assign GPIO_1[26]             =(reset)?1'b0:1'b1;
 
    /********************************************************************************
-    * Syncronize reset
-    ********************************************************************************/
-
-   sync_reset sync_reset(.key(KEY[0]),.*);
-
-   /********************************************************************************
-    * HEX display
-    ********************************************************************************/
-
-   display_decoder display_decoder(.SW(SW[2:0]),.*);
-
-   /********************************************************************************
     * DCF77 receiver and clock
     ********************************************************************************/
 
    wire clock_clk_en      = clk_en_10ms | SW[8];
    wire clock_dscf77_sync = dcf77_sync  & SW[9];
 
+   if_date_time dcf77_date_time();
+   if_date_time clock_date_time();
+
+   sync_reset sync_reset(.clk(clk),.key(KEY[0]),.reset(reset));
+
    clk_en clk_en(.reset(reset),.clk(clk),.clk_en(clk_en_10ms));
 
    dcf77 dcf77(.reset(reset),.clk(clk),.clk_en(clk_en_10ms),
 	       .rx(dcf77_rx),.data_hold(dcf77_data),
-	       .error(dcf77_error),.sync(dcf77_sync));
+	       .error(dcf77_error),.sync(dcf77_sync),
+	       .date_time(dcf77_date_time));
 
    clock clock(.reset(reset),.clk(clk),.clk_en(clock_clk_en),
 	       .dcf77_sync(clock_dscf77_sync),
-	       .dcf77_year(dcf77_data[57:50]),
-	       .dcf77_month({3'b0,dcf77_data[49:45]}),
-	       .dcf77_day({2'b0,dcf77_data[41:36]}),
-	       .dcf77_day_of_week(dcf77_data[44:42]),
-	       .dcf77_hour({2'b0,dcf77_data[34:29]}),
-	       .dcf77_minute({1'b0,dcf77_data[27:21]}),
-	       .year(year),
-	       .month(month),
-	       .day(day),
-	       .day_of_week(day_of_week),
-	       .hour(hour),
-	       .minute(minute),
-	       .second(second));
+	       .dcf77(dcf77_date_time),
+	       .clock(clock_date_time));
+
+   display_decoder display_decoder(.SW(SW[2:0]),
+				   .clock(clock_date_time),
+				   .HEX0(HEX0),.HEX1(HEX1),.HEX2(HEX2),.HEX3(HEX3));
 
    /********************************************************************************
     * USB Interface
     ********************************************************************************/
 
+   if_transceiver              transceiver();
+   if_endpoint    #(num_endpi) endpi();
+   if_endpoint    #(num_endpo) endpo();
+   
    usb_transceiver usb_transceiver (.reset(reset),.clk(clk),
 				    .d_i(usb_d_i),.d_o(usb_d_o),.d_en(usb_d_en),.usb_reset(usb_reset),
-				    .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
-				    .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error));
+				    .transceiver(transceiver));
 
-   usb_sie #(num_endp) usb_sie(.reset(usb_reset),.clk(clk),
-			       .tx_data(usb_tx_data),.tx_valid(usb_tx_valid),.tx_ready(usb_tx_ready),
-			       .rx_data(usb_rx_data),.rx_active(usb_rx_active),.rx_valid(usb_rx_valid),.rx_error(usb_rx_error),
-			       .device_addr(usb_device_addr),
-			       .endpi_data(usb_endpi_data),.endpi_valid(usb_endpi_data),.endpi_crc16(usb_endpi_data),.endpi_ready(usb_endpi_data),
-			       .endpo_data(usb_endpo_data),.endpo_valid(usb_endpo_valid),.endpo_crc16(usb_endpo_crc16),.endpo_ready(usb_endpo_ready));
+   usb_sie #(num_endpi,num_endpo) usb_sie(.reset(usb_reset),.clk(clk),
+					  .transceiver(transceiver),
+					  .device_addr(usb_device_addr),
+					  .endpi(endpi),.endpo(endpo));
 endmodule

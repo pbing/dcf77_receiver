@@ -3,16 +3,7 @@
 module display_decoder
   import types::*;
    (input        [2:0]  SW,          // Toggle Switch[2:0]
-
-    /* from DCF77 module */
-    input  bcd_t [1:0]  year,
-    input  bcd_t [1:0]  month,
-    input  bcd_t [1:0]  day,
-    input  bcd_t [1:0]  hour,
-    input  bcd_t [1:0]  minute,
-    input  bcd_t [1:0]  second,
-    input        [2:0]  day_of_week,
-
+    if_date_time        clock,       // from clock module
     output logic [6:0]  HEX0,        // Seven Segment Digit 0
     output logic [6:0]  HEX1,        // Seven Segment Digit 1
     output logic [6:0]  HEX2,        // Seven Segment Digit 2
@@ -25,31 +16,31 @@ module display_decoder
 	 begin
 	    HEX3=bcd_digit(0);
 	    HEX2=bcd_digit(0);
-	    HEX1=bcd_digit(second[1]);
-	    HEX0=bcd_digit(second[0]);
+	    HEX1=bcd_digit(clock.second[1]);
+	    HEX0=bcd_digit(clock.second[0]);
 	 end
 
        SW[1]:
 	 begin
-	    {HEX3,HEX2}=week_day_chars(day_of_week);
-	    HEX1=bcd_digit(day[1]);
-	    HEX0=bcd_digit(day[0]);
+	    {HEX3,HEX2}=week_day_chars(clock.day_of_week);
+	    HEX1=bcd_digit(clock.day[1]);
+	    HEX0=bcd_digit(clock.day[0]);
 	 end
 
        SW[2]:
 	 begin
-	    HEX3=bcd_digit(year[1]);
-	    HEX2=bcd_digit(year[0]);
-	    HEX1=bcd_digit(month[1]);
-	    HEX0=bcd_digit(month[0]);
+	    HEX3=bcd_digit(clock.year[1]);
+	    HEX2=bcd_digit(clock.year[0]);
+	    HEX1=bcd_digit(clock.month[1]);
+	    HEX0=bcd_digit(clock.month[0]);
 	 end
 
        default
 	 begin
-	    HEX3=bcd_digit(hour[1]);
-	    HEX2=bcd_digit(hour[0]);
-	    HEX1=bcd_digit(minute[1]);
-	    HEX0=bcd_digit(minute[0]);
+	    HEX3=bcd_digit(clock.hour[1]);
+	    HEX2=bcd_digit(clock.hour[0]);
+	    HEX1=bcd_digit(clock.minute[1]);
+	    HEX0=bcd_digit(clock.minute[0]);
 	 end
      endcase
 
