@@ -7,4 +7,4 @@
 
 # Status
 - DCF77 receiver: FPGA proven
-- USB: Only PHY yet
+- USB: work in progress
