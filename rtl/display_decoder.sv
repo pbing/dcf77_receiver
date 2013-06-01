@@ -14,8 +14,8 @@ module display_decoder
      priority case(1'b1)
        SW[0]:
 	 begin
-	    HEX3=bcd_digit(0);
-	    HEX2=bcd_digit(0);
+	    HEX3=~7b'b0;
+	    HEX2=~7b'b0;
 	    HEX1=bcd_digit(clock.second[1]);
 	    HEX0=bcd_digit(clock.second[0]);
 	 end
