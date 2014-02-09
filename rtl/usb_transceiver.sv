@@ -12,7 +12,7 @@ module usb_transceiver
     output          usb_reset, // USB reset due to SE0 for 10 ms
 
     if_transceiver  transceiver);
-   
+
    wire     rx_clk_en;         // RX clock enable
    d_port_t rx_d_i;            // RX data from CDR
    d_port_t line_state;        // synchronized D+,D-

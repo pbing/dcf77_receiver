@@ -30,4 +30,12 @@ package types;
 			     PING    =4'b0100,
 			     RESERVED=4'b0000
 			     } pid_t;
+
+   typedef  struct {
+      logic [3:0] pidx; // inverted PID
+      pid_t       pid;  // PID
+      logic [6:0] addr; // address
+      logic [3:0] endp; // endpoint
+      logic [4:0] crc5; // CRC5
+   } token_t;
 endpackage

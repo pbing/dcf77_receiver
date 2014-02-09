@@ -15,6 +15,14 @@
  * GPIO_1[32]   USB-D+
  * GPIO_1[34]   USB-D-≈
  * GPIO_1[35]   DCF77 RX pulse
+ *
+ *
+ *
+ * USB Registers
+ * ---------------------------------------------------------------------------------------------------
+ * 0   usb_device_controller   rw
+ * 1   dcf77_data[63:0]        r
+ * 2   display[47:0]           w    {2'b0,LEDR[9:0],LEDG[7:0],HEX3[6:0],HEX2[6:0],HEX1[6:0],HEX0[6:0]}
  */
 
 module CII_Starter_TOP (/* Clock Input */
@@ -113,10 +121,6 @@ module CII_Starter_TOP (/* Clock Input */
                         inout [35:0]  GPIO_0,      // GPIO Connection 0
                         inout [35:0]  GPIO_1);     // GPIO Connection 1
 
-   localparam [6:0] usb_device_addr=42; // assigned device address
-   localparam       num_endpi=3;        // number of in endpoints (1...3 for low-speed devices)
-   localparam       num_endpo=3;        // number of out endpoints (1...3 for low-speed devices)
-
    import types::*;
 
    /* common signals */
@@ -124,18 +128,18 @@ module CII_Starter_TOP (/* Clock Input */
    wire clk;
 
    /* DCF77 receiver and clock */
-   wire         clk_en_10ms;
-   wire         dcf77_rx;
-   wire  [58:0] dcf77_data;
-   wire         dcf77_error,dcf77_sync;
-   bcd_t [1:0]  year,month,day,hour,minute,second;
-   wire  [2:0]  day_of_week;
+   wire  clk_en_10ms;
+   wire  dcf77_rx;
+   wire  dcf77_error;
+   wire  dcf77_sync;
+   logic clock_clk_en;
+   logic clock_dscf77_sync;
 
    /* USB */
    d_port_t   usb_d_i;        // USB port D+,D- (input)
    d_port_t   usb_d_o;        // USB port D+,D- (output)
-   logic      usb_d_en;       // USB port D+,D- (enable)
-   logic      usb_reset;      // USB reset due to SE0 for 10 ms
+   wire       usb_d_en;       // USB port D+,D- (enable)
+   wire       usb_reset;      // USB reset due to SE0 for 10 ms
 
    /* I/O assignments */
    assign clk                    =CLOCK_24[0];
@@ -150,9 +154,6 @@ module CII_Starter_TOP (/* Clock Input */
     * DCF77 receiver and clock
     ********************************************************************************/
 
-   wire clock_clk_en      = clk_en_10ms | SW[8];
-   wire clock_dscf77_sync = dcf77_sync  & SW[9];
-
    if_date_time dcf77_date_time();
    if_date_time clock_date_time();
 
@@ -161,7 +162,8 @@ module CII_Starter_TOP (/* Clock Input */
    clk_en clk_en(.reset(reset),.clk(clk),.clk_en(clk_en_10ms));
 
    dcf77 dcf77(.reset(reset),.clk(clk),.clk_en(clk_en_10ms),
-	       .rx(dcf77_rx),.data_hold(dcf77_data),
+	       .rx(dcf77_rx),
+	       .data_hold(/*open*/),
 	       .error(dcf77_error),.sync(dcf77_sync),
 	       .date_time(dcf77_date_time));
 
@@ -174,20 +176,35 @@ module CII_Starter_TOP (/* Clock Input */
 				   .clock(clock_date_time),
 				   .HEX0(HEX0),.HEX1(HEX1),.HEX2(HEX2),.HEX3(HEX3));
 
+   /* control with on-board switches */
+   always_comb
+     begin
+	clock_clk_en      = clk_en_10ms | SW[8];
+	clock_dscf77_sync = dcf77_sync  & SW[9];
+     end
+
    /********************************************************************************
     * USB Interface
     ********************************************************************************/
 
-   if_transceiver              transceiver();
-   if_endpoint    #(num_endpi) endpi();
-   if_endpoint    #(num_endpo) endpo();
-   
+   if_transceiver transceiver();
+   if_wishbone    wbm   (.rst(usb_reset),.clk(clk));
+   if_wishbone    wbs[2](.rst(usb_reset),.clk(clk));
+
    usb_transceiver usb_transceiver (.reset(reset),.clk(clk),
 				    .d_i(usb_d_i),.d_o(usb_d_o),.d_en(usb_d_en),.usb_reset(usb_reset),
 				    .transceiver(transceiver));
 
-   usb_sie #(num_endpi,num_endpo) usb_sie(.reset(usb_reset),.clk(clk),
-					  .transceiver(transceiver),
-					  .device_addr(usb_device_addr),
-					  .endpi(endpi),.endpo(endpo));
+   wb_shared_bus wb_shared_bus(.wbm(wbm),.wbs(wbs));
+
+   usb_sie usb_sie(.wb(wbm),.transceiver(transceiver));
+   
+   /* USB device[0] */
+   usb_device_controller #(.addr(0)) usb_device_controller(.wb(wbs[0]));
+
+   /* USB device[1] */
+   dcf77_registers dcf77_registers(.wb(wbs[1]),.dcf77_date_time(dcf77_date_time),.clock_date_time(clock_date_time));
+
+   /* USB device[2] */
+   //display_register #(.addr(2)) (.wbs[2],...);
 endmodule

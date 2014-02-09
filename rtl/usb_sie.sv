@@ -1,166 +1,154 @@
 /* USB Serial Interface Controller */
 
-module usb_sie #(parameter 
-		 num_endpi=1, // number of in endpoints (1...3 for low-speed devices)
-		 num_endpo=1) // number of out endpoints (1...3 for low-speed devices)
-   (input              reset,                  // system reset
-    input              clk,                    // system clock (24 MHz)
-
-    if_transceiver     transceiver,
-
-    /* Device */
-    input        [6:0] device_addr,            // assigned device address
-
-    if_endpoint        endpi,
-    if_endpoint        endpo);
+module usb_sie (if_wishbone.master wb,           // Device interface
+		if_transceiver     transceiver); // USB tranceiver interface
 
    import types::*;
 
-   /* TOKEN stage */
-   struct {
-      pid_t       pid;  // PID
-      logic [6:0] addr; // address
-      logic [3:0] endp; // endpoint
-      logic [4:0] crc5; // CRC5
-   } token;
+   var token_t token;
 
-   /* DATA stage */
-   var   pid_t  pid2;   // PID
-   logic [15:0] crc16;  // CRC16
+   logic [6:0]  device_addr;  // FIXME assigned device address
+   logic        packet_ready; // FIXME fsm_packet_state != S_TOKEN0 && transceiver.eop?
+   logic [15:0] crc16;        // CRC16
 
-   enum int unsigned {IDLE,DO_TOKEN[3],DO_BCINTO[4],DO_BCINTI[100]} state; // FSM states
+   /* FIXME */
+   always_comb
+     begin
+	transceiver.tx_data =8'd42;
+	transceiver.tx_valid=1'b0;
+     end
 
-   always_ff @(posedge clk)
-     if(reset)
+   /************************************************************************
+    * Packet FSM
+    ************************************************************************/
+   enum int unsigned {S_TOKEN[3],S_DATA} fsm_packet_state,fsm_packet_next;
+
+   always_ff @(posedge wb.clk)
+     if(wb.rst)
+       fsm_packet_state<=S_TOKEN0;
+     else
+       fsm_packet_state<=fsm_packet_next;
+
+   always_comb
+     if(!transceiver.rx_active)
+       fsm_packet_next=S_TOKEN0;
+     else
        begin
-	  for(int i=0;i<num_endpi;i++)
-	       endpi.ready[i]<=1'b0;
-	  for(int i=0;i<num_endpo;i++)
-	    begin
-	       endpo.data[i] <=8'h0;
-	       endpo.valid[i]<=1'b0;
-	    end
-	  transceiver.tx_data   <=8'h0;
-	  transceiver.tx_valid  <=1'b0;
+	  fsm_packet_next=fsm_packet_state;
+
+	  if(transceiver.rx_valid)
+	    case(fsm_packet_state)
+	      S_TOKEN0:
+		begin
+		   var pid_t pid;
+		   pid=pid_t'(transceiver.rx_data[3:0]);
+
+		   case(pid)
+		     OUT,IN,SETUP:
+		       fsm_packet_next=S_TOKEN1;
+
+		     DATA0,DATA1:
+		       fsm_packet_next=S_DATA;
+
+		     default
+		       fsm_packet_next=S_TOKEN0;
+		   endcase
+		end
+
+	      S_TOKEN1: fsm_packet_next=S_TOKEN2;
+
+	      S_TOKEN2: fsm_packet_next=S_TOKEN0;
+
+	      S_DATA: ;
+	    endcase
+       end
+
+   /************************************************************************
+    * Save host data
+    ************************************************************************/
+
+   always_ff @(posedge wb.clk)
+     if(!transceiver.rx_active)
+       begin
+	  token.pidx<=4'b0;
 	  token.pid <=RESERVED;
 	  token.addr<=7'd0;
 	  token.endp<=4'd0;
-	  token.crc5<=5'h1f;
-	  pid2      <=RESERVED;
+	  token.crc5<=5'h0;
+
 	  crc16     <=16'hffff;
-	  state     <=IDLE;
        end
      else
+       if(transceiver.rx_valid)
+	 case(fsm_packet_state)
+	   /* Save values during TOKEN stage. */
+	   S_TOKEN0:
+	     begin
+		token.pidx<=transceiver.rx_data[7:4];
+		token.pid <=pid_t'(transceiver.rx_data[3:0]);
+	     end
+
+	   S_TOKEN1:
+	     begin
+		token.addr   <=transceiver.rx_data[6:0];
+		token.endp[0]<=transceiver.rx_data[7];
+	     end
+
+	   S_TOKEN2:
+	     begin
+		token.endp[3:1]<=transceiver.rx_data[2:0];
+		token.crc5     <=transceiver.rx_data[7:3];
+	     end
+
+	   /* Calculate CRC16 during DATA stage. */
+	   S_DATA:
+	     crc16 <=step_crc16(transceiver.rx_data);
+	 endcase
+
+   always_ff @(posedge wb.clk)
+     if(wb.rst)
        begin
-	  transceiver.tx_valid<=1'b0;
-	  for(int i=0;i<num_endpo;i++)
-	    begin
-	       endpo.valid[i]<=1'b0;
-	    end
-
-	  case(state)
-	    IDLE:
-	      begin
-		 crc16<=16'hffff;
-
-		 if(transceiver.rx_valid && valid_pid(transceiver.rx_data))
-		   begin
-		      token.pid<=pid_t'(transceiver.rx_data[3:0]);
-		      state    <=DO_TOKEN0;
-		   end
-	      end
-
-	    DO_TOKEN0:
-	      if(transceiver.rx_valid)
-		begin
-		   {token.endp[0],token.addr}<=transceiver.rx_data;
-		   state<=DO_TOKEN1;
-		end
-
-	    DO_TOKEN1:
-	      if(transceiver.rx_valid)
-		begin
-		   {token.crc5,token.endp[3:1]}<=transceiver.rx_data;
-		   state<=DO_TOKEN2;
-		end
-
-	    DO_TOKEN2:
-	      begin
-		 state<=IDLE;
-
-		 if(valid_crc5({token.crc5,token.endp,token.addr}))
-		   case(token.pid)
-		     SETUP: if( token.endp==4'd0) state<=DO_BCINTO0;
-		     OUT  : state<=DO_BCINTO0;
-		     IN   : state<=DO_BCINTI0;
-		   endcase
-	      end
-
-	    DO_BCINTO0:
-	      if(transceiver.rx_valid)
-		begin
-		   state<=IDLE;
-
-		   if(valid_pid(transceiver.rx_data))
-		     begin
-			pid2 <=pid_t'(transceiver.rx_data[3:0]);
-			state<=DO_BCINTO1;
-		     end
-		end
-
-	    DO_BCINTO1:
-	      begin
-		 state<=IDLE;
-
-		 case(token.pid)
-		   SETUP: if(pid2==DATA0)                state<=DO_BCINTO2;
-		   OUT  : if(pid2==DATA0 || pid2==DATA1) state<=DO_BCINTO2;
-		 endcase
-	      end
-
-	    DO_BCINTO2:
-	      if(transceiver.rx_active)
-		begin
-		   if(transceiver.rx_valid)
-		     begin
-			endpo.data[token.endp] <=transceiver.rx_data;
-			endpo.valid[token.endp]<=1'b1;
-			crc16                  <=step_crc16(transceiver.rx_data);
-		     end
-		end
-	      else
-		state<=DO_BCINTO3;
-
-	    DO_BCINTO3:
-	      begin
-		 transceiver.tx_data <=tx_pid(ACK);
-		 transceiver.tx_valid<=1'b1;
-
-		 if(transceiver.tx_ready)
-		   state<=IDLE;
-	      end
-
-	    DO_BCINTI0: ;
-	  endcase
+	  wb.cyc<=1'b0;
+	  wb.stb<=1'b0;
+	  wb.we <=1'b0;
        end
+     else
+       if(wb.ack)
+	 begin
+	    wb.cyc<=1'b0;
+	    wb.stb<=1'b0;
+	    wb.we <=1'b0;
+	 end
+       else if(transceiver.rx_valid && fsm_packet_state==S_DATA)
+	 begin
+	    wb.cyc<=1'b1;
+	    wb.stb<=1'b1;
+	    wb.we <=1'b1;
+	 end
 
    always_comb
-     for(int i=0;i<num_endpo;i++)
-       if(i==token.endp)
-	 endpo.crc16[i]=valid_crc16();
-       else
-	 endpo.crc16[i]=1'b0;
+     begin
+	wb.addr  =token.endp;
+	wb.data_m=transceiver.rx_data;
+     end
+
+
+
+   /************************************************************************
+    * validy checks
+    ************************************************************************/
+   /* DEBUG */
+   wire dbg_valid_token = valid_token(token);
+   wire dbg_valid_data  = valid_crc16(crc16);
+
+
 
    /************************************************************************
     * Functions
     ************************************************************************/
 
-   function valid_pid(input [7:0] d);
-      valid_pid=(d[3:0] == ~d[7:4]);
-   endfunction
-
-   function [7:0] tx_pid(input pid_t p);
-      tx_pid={~p,p};
+   function valid_token(input token_t token);
+      valid_token=(token.pid == ~token.pidx) && valid_crc5({token.crc5,token.endp,token.addr});
    endfunction
 
    /*
@@ -209,7 +197,7 @@ module usb_sie #(parameter
 	  step_crc16=step_crc16>>1;
    endfunction
 
-   function valid_crc16();
+   function valid_crc16(input [15:0] crc16);
       const bit [15:0] crc16_res =16'b1011000000000001;
 
       valid_crc16=(crc16_res == crc16);

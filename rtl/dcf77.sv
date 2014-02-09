@@ -9,19 +9,28 @@ module dcf77(input               reset,      // reset
 	     output logic        sync,       // synchronize clock
 	     if_date_time        date_time); // interface to clock module
 
-   logic [58:0] data_shift;       // data shift register
-   logic        valid,data_valid; // received data frame is valid
+   logic [58:0] data_shift;           // data registers
+   logic        valid,data_valid;     // received data frame is valid
 
    always_comb
      begin:intrface
-	date_time.year       =      data_hold[57:50];
-	date_time.month      ={3'b0,data_hold[49:45]};
+	date_time.broadcast  =      data_hold[14:1];
+	date_time.r          =      data_hold[15];
+	date_time.a1         =      data_hold[16];
+	date_time.z1         =      data_hold[17];
+	date_time.z2         =      data_hold[18];
+	date_time.a2         =      data_hold[19];
+	date_time.minute     ={1'b0,data_hold[27:21]};
+	date_time.p1         =      data_hold[28];
+	date_time.hour       ={2'b0,data_hold[34:29]};
+	date_time.p2         =      data_hold[35];
 	date_time.day        ={2'b0,data_hold[41:36]};
 	date_time.day_of_week=      data_hold[44:42];
-	date_time.hour       ={2'b0,data_hold[34:29]};
-	date_time.minute     ={1'b0,data_hold[27:21]};
+	date_time.month      ={3'b0,data_hold[49:45]};
+	date_time.year       =      data_hold[57:50];
+	date_time.p3         =      data_hold[58];
      end:intrface
-   
+
 
    always_ff @(posedge clk)
      begin:main
@@ -35,18 +44,18 @@ module dcf77(input               reset,      // reset
 
 	if(reset)
 	  begin
-	     rx_s<='0;
-	     rx_d<='0;
-	     counter_pulse<='0;
-	     d<='0;
-	     shift_en<='0;
+	     rx_s            <='0;
+	     rx_d            <='0;
+	     counter_pulse   <='0;
+	     d               <='0;
+	     shift_en        <='0;
 	     counter_start[1]<='0;
 	     counter_start[2]<='0;
-	     start<='0;
-	     data_shift<='0;
-	     data_hold<='0;
-	     error<='1;
-	     data_valid<='0;
+	     start           <='0;
+	     data_shift      <='0;
+	     data_hold       <='0;
+	     error           <='1;
+	     data_valid      <='0;
 	  end
 	else if(clk_en)
 	  begin

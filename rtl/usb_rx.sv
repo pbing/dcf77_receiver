@@ -129,11 +129,21 @@ module usb_rx
 
    always_comb
      begin
-	active  =(rx_state!=RESET || rx_state!=SYNC0 || rx_state!=SYNC1 ||
-		  rx_state!=SYNC2 || rx_state!=SYNC3 || rx_state!=SYNC4 ||
-		  rx_state!=SYNC5 || rx_state!=SYNC6 || rx_state!=SYNC7);
-	rcv_data=(rx_state==RX_DATA_WAIT7);
-	error   =(rx_state==ERROR);
+	active  =1'b0;
+	rcv_data=1'b0;
+	error   =1'b0;
+
+	case(rx_state)
+	  RX_DATA_WAIT0: active=1'b1;
+	  RX_DATA_WAIT1: active=1'b1;
+	  RX_DATA_WAIT2: active=1'b1;
+	  RX_DATA_WAIT3: active=1'b1;
+	  RX_DATA_WAIT4: active=1'b1;
+	  RX_DATA_WAIT5: active=1'b1;
+	  RX_DATA_WAIT6: active=1'b1;
+	  RX_DATA_WAIT7: begin active=1'b1; rcv_data=1'b1; end
+	  ERROR        : error=1'b1;
+	endcase
      end
 
    /*************************************************************
