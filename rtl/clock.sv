@@ -1,13 +1,13 @@
 /* DCF77-synchronized free-running clock */
 
-module clock
-  import types::bcd_t;
-   (input        reset,      // reset
-    input        clk,        // clock (24 MHz)
-    input        clk_en,     // clock enable (10 ms)
-    input        dcf77_sync, // sync pulse from DCF77 module
-    if_date_time dcf77,      // date & time from DCF77 module
-    if_date_time clock);     // date & time from synchronized clock
+module clock(input        reset,      // reset
+	     input        clk,        // clock (24 MHz)
+	     input        clk_en,     // clock enable (10 ms)
+	     input        dcf77_sync, // sync pulse from DCF77 module
+	     if_date_time dcf77,      // date & time from DCF77 module (input)
+	     if_date_time clock);     // date & time from synchronized clock (output)
+   
+   import types::bcd_t;
 
    bcd_t [1:0]  year;
    bcd_t [1:0]  month;
