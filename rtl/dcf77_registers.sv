@@ -2,7 +2,8 @@
 
 module dcf77_registers(if_wishbone.slave wb,
 		       if_date_time      dcf77_date_time,
-		       if_date_time      clock_date_time);
+		       if_date_time      clock_date_time,
+		       logic [3:0]       endp);
 
    logic [63:0] dcf77_data;
    logic [63:0] clock_data;
@@ -34,9 +35,9 @@ module dcf77_registers(if_wishbone.slave wb,
 	clock_data[44:42]=clock_date_time.day_of_week;
 	clock_data[49:45]=clock_date_time.month;
 	clock_data[57:50]=clock_date_time.year;
-
      end
 
+   /* FSM for reading 64 bit dcf77_data sequentially. */
    enum int unsigned {S[8]} state,next;
 
    always_ff @(posedge wb.clk)
