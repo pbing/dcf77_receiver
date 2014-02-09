@@ -10,6 +10,7 @@ module usb_sie (if_wishbone.master wb,           // Device interface
    logic [6:0]  device_addr;  // FIXME assigned device address
    logic        packet_ready; // FIXME fsm_packet_state != S_TOKEN0 && transceiver.eop?
    logic [15:0] crc16;        // CRC16
+   logic [7:0]  data[3];      // needed in order to strip CRC16
 
    /* FIXME */
    always_comb
@@ -21,7 +22,7 @@ module usb_sie (if_wishbone.master wb,           // Device interface
    /************************************************************************
     * Packet FSM
     ************************************************************************/
-   enum int unsigned {S_TOKEN[3],S_DATA} fsm_packet_state,fsm_packet_next;
+   enum int unsigned {S_TOKEN[3],S_DATA[3]} fsm_packet_state,fsm_packet_next;
 
    always_ff @(posedge wb.clk)
      if(wb.rst)
@@ -48,7 +49,7 @@ module usb_sie (if_wishbone.master wb,           // Device interface
 		       fsm_packet_next=S_TOKEN1;
 
 		     DATA0,DATA1:
-		       fsm_packet_next=S_DATA;
+		       fsm_packet_next=S_DATA0;
 
 		     default
 		       fsm_packet_next=S_TOKEN0;
@@ -59,7 +60,11 @@ module usb_sie (if_wishbone.master wb,           // Device interface
 
 	      S_TOKEN2: fsm_packet_next=S_TOKEN0;
 
-	      S_DATA: ;
+	      S_DATA0: fsm_packet_next=S_DATA1;
+
+	      S_DATA1: fsm_packet_next=S_DATA2;
+
+	      S_DATA2: ;
 	    endcase
        end
 
@@ -101,13 +106,17 @@ module usb_sie (if_wishbone.master wb,           // Device interface
 	     end
 
 	   /* Calculate CRC16 during DATA stage. */
-	   S_DATA:
+	   S_DATA0,S_DATA1,S_DATA2:
 	     crc16 <=step_crc16(transceiver.rx_data);
 	 endcase
 
    always_ff @(posedge wb.clk)
      if(wb.rst)
        begin
+	  data[0]<=8'h00;
+	  data[1]<=8'h00;
+	  data[2]<=8'h00;
+
 	  wb.cyc<=1'b0;
 	  wb.stb<=1'b0;
 	  wb.we <=1'b0;
@@ -119,17 +128,31 @@ module usb_sie (if_wishbone.master wb,           // Device interface
 	    wb.stb<=1'b0;
 	    wb.we <=1'b0;
 	 end
-       else if(transceiver.rx_valid && fsm_packet_state==S_DATA)
-	 begin
-	    wb.cyc<=1'b1;
-	    wb.stb<=1'b1;
-	    wb.we <=1'b1;
-	 end
+       else if(transceiver.rx_valid)
+	 case(fsm_packet_state)
+	   S_DATA0,S_DATA1:
+	     begin
+		data[0]<=transceiver.rx_data;
+		data[1]<=data[0];
+		data[2]<=data[1];
+	     end
+
+	   S_DATA2:
+	     begin
+		data[0]<=transceiver.rx_data;
+		data[1]<=data[0];
+		data[2]<=data[1];
+
+		wb.cyc<=1'b1;
+		wb.stb<=1'b1;
+		wb.we <=1'b1;
+	     end
+	 endcase
 
    always_comb
      begin
 	wb.addr  =token.endp;
-	wb.data_m=transceiver.rx_data;
+	wb.data_m=data[2];    // Delay wb.data_m by two cycles in order to strip CRC16.
      end
 
 
