@@ -1,6 +1,9 @@
-/* USB device controller */
+/* USB device controller 
+ * Endpoint address is always 0.
+ */
 
 module usb_device_controller(if_wishbone.slave wb);
+
    logic [7:0] data;
 
    /* DEBUG */
@@ -8,7 +11,7 @@ module usb_device_controller(if_wishbone.slave wb);
      if(wb.rst)
        data<=8'h00;
      else
-       if(wb.we)
+       if(wb.addr==4'd0 && wb.we)
 	 data<=wb.data_m;
 
    /* synchronous slave */

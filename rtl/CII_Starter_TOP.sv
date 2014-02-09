@@ -199,12 +199,15 @@ module CII_Starter_TOP (/* Clock Input */
 
    usb_sie usb_sie(.wb(wbm),.transceiver(transceiver));
    
-   /* USB device[0] */
-   usb_device_controller #(.addr(0)) usb_device_controller(.wb(wbs[0]));
+   /* Endpoint 0 */
+   usb_device_controller usb_device_controller(.wb(wbs[0]));
 
-   /* USB device[1] */
-   dcf77_registers dcf77_registers(.wb(wbs[1]),.dcf77_date_time(dcf77_date_time),.clock_date_time(clock_date_time));
+   /* Endpoint 1 */
+//   dcf77_registers dcf77_registers(.wb(wbs[1]),
+//				   .dcf77_date_time(dcf77_date_time),
+//				   .clock_date_time(clock_date_time),
+//				   .endp(4'd1/*FIXME*/));
 
-   /* USB device[2] */
+   /* Endpoint 2 */
    //display_register #(.addr(2)) (.wbs[2],...);
 endmodule
