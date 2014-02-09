@@ -8,22 +8,31 @@ module tb_usb_sie;
 		  tclk=1s/24.0e6,
 		  nbit=tusb/tclk;
 
-   localparam [6:0] device_addr=42;    // assigned device address
-   localparam       num_endpi=1;       // number of in endpoints (1...3 for low-speed devices)
-   localparam       num_endpo=2;       // number of out endpoints (1...3 for low-speed devices)
-
    import types::*;
 
-   bit          reset=1'b1;            // system reset
-   bit          clk;                   // system clock (24 MHz)
+   bit        reset=1'b1;            // system reset
+   bit        clk;                   // system clock (24 MHz)
 
-   if_transceiver             transceiver();
-   if_endpoint    #(num_endpi) endpi();
-   if_endpoint    #(num_endpo) endpo();
-   
-   usb_sie        #(num_endpi,num_endpo) dut(.*);
+   byte GET_DESCRIPTOR[]='{8'h80,8'h06,8'h00,8'h01,8'h00,8'h00,8'h08,8'h00};
+
+   if_transceiver transceiver();
+   if_wishbone    wb(.rst(reset),.clk(clk));
+
+   usb_sie dut(.*);
 
    initial forever #(tclk/2) clk=~clk;
+
+   /* synchronous slave */
+   always @(posedge wb.clk)
+     begin:slave
+	if(wb.rst)
+	  wb.ack<=1'b0;
+	else
+	  if(wb.ack)
+	    wb.ack<=1'b0;
+	  else if(wb.cyc && wb.stb)
+	    wb.ack<=1'b1;
+     end:slave
 
    initial
      begin:main
@@ -38,6 +47,12 @@ module tb_usb_sie;
 	assert(crc16('{8'h23,8'h45,8'h67,8'h89})==16'h1c0e) else $error("CRC16");
 	assert(crc16()                          ==16'h0000) else $error("CRC16"); // zero length packet
 
+	/* initial interface state */
+	transceiver.rx_active=1'b0;
+	transceiver.rx_valid =1'b0;
+	transceiver.rx_error =1'b0;
+	transceiver.tx_ready =1'b0;
+
 	repeat(3) @(posedge clk);
 	reset=1'b0;
 	#100ns;
@@ -48,21 +63,23 @@ module tb_usb_sie;
 
 	/* Setup Stage */
 	receive_token(SETUP,0,0);
-	receive_data(DATA0,'{8'h80,8'h06,8'h00,8'h01,8'h00,8'h00,8'h08,8'h00}); // GET_DESCRIPTOR
-	send_handshake(ACK);
+	receive_data(DATA0,GET_DESCRIPTOR);
+	#30us; //send_handshake(ACK);
 
-	/* Data Stage */
-	#10us receive_token(IN,0,0);
-	//send_data(...);
-	receive_handshake(ACK);
-	#5us @(posedge clk) reset=1'b1;@(posedge clk) reset=1'b0; // reset FSM
+	/* -----\/----- EXCLUDED -----\/-----
+	 /-* Data Stage *-/
+	 #10us receive_token(IN,0,0);
+	 //send_data(...);
+	 receive_handshake(ACK);
+	 #5us @(posedge clk) reset=1'b1;@(posedge clk) reset=1'b0; // reset FSM
+	 -----/\----- EXCLUDED -----/\----- */
 
 	/* Status Stage */
 	#10us receive_token(OUT,0,0);
 	receive_data(DATA0); // ZLP
-	send_handshake(ACK);
+	#30us $stop; //send_handshake(ACK);
 
-	#10us $stop;
+	#10us $finish;
      end:main
 
    always @(posedge transceiver.tx_valid)
@@ -81,15 +98,15 @@ module tb_usb_sie;
 	join_any
      end:tx
 
-   task send_handshake(pid_t pid);
+   task send_handshake(input pid_t pid);
       do @(posedge clk); while(!transceiver.tx_valid);
 
-      assert (transceiver.tx_data=={~pid,pid});
+      assert(transceiver.tx_data=={~pid,pid});
 
       do @(posedge clk); while(transceiver.tx_valid);
    endtask
 
-   task receive_token(pid_t pid,logic [6:0] addr,logic [3:0] endp);
+   task receive_token(input pid_t pid,input [6:0] addr,input [3:0] endp);
       repeat(2) @(posedge clk);
       wait(!transceiver.tx_valid);
 
