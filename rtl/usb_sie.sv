@@ -12,17 +12,10 @@ module usb_sie (if_wishbone.master wb,           // Device interface
    logic [15:0] crc16;        // CRC16
    logic [7:0]  data[3];      // needed in order to strip CRC16
 
-   /* FIXME */
-   always_comb
-     begin
-	transceiver.tx_data =8'd42;
-	transceiver.tx_valid=1'b0;
-     end
-
    /************************************************************************
     * Packet FSM
     ************************************************************************/
-   enum int unsigned {S_TOKEN[3],S_DATA[3]} fsm_packet_state,fsm_packet_next;
+   enum int unsigned {S_TOKEN[3],S_DATA[3],S_ACK,S_NAK,S_STALL} fsm_packet_state,fsm_packet_next;
 
    always_ff @(posedge wb.clk)
      if(wb.rst)
@@ -31,49 +24,60 @@ module usb_sie (if_wishbone.master wb,           // Device interface
        fsm_packet_state<=fsm_packet_next;
 
    always_comb
-     if(!transceiver.rx_active)
-       fsm_packet_next=S_TOKEN0;
-     else
-       begin
-	  fsm_packet_next=fsm_packet_state;
+     begin
+	fsm_packet_next=fsm_packet_state;
 
-	  if(transceiver.rx_valid)
-	    case(fsm_packet_state)
-	      S_TOKEN0:
-		begin
-		   var pid_t pid;
-		   pid=pid_t'(transceiver.rx_data[3:0]);
+	case(fsm_packet_state)
+	  S_TOKEN0:
+	    begin
+	       var pid_t pid;
+	       pid=pid_t'(transceiver.rx_data[3:0]);
 
-		   case(pid)
-		     OUT,IN,SETUP:
-		       fsm_packet_next=S_TOKEN1;
+	       case(pid)
+		 OUT,IN,SETUP:
+		   if(transceiver.rx_valid) fsm_packet_next=S_TOKEN1;
 
-		     DATA0,DATA1:
-		       fsm_packet_next=S_DATA0;
+		 DATA0,DATA1:
+		   if(transceiver.rx_valid) fsm_packet_next=S_DATA0;
 
-		     default
-		       fsm_packet_next=S_TOKEN0;
-		   endcase
-		end
+		 default
+		   fsm_packet_next=S_TOKEN0;
+	       endcase
+	    end
 
-	      S_TOKEN1: fsm_packet_next=S_TOKEN2;
+	  S_TOKEN1:
+	    if(transceiver.rx_valid) fsm_packet_next=S_TOKEN2;
 
-	      S_TOKEN2: fsm_packet_next=S_TOKEN0;
+	  S_TOKEN2:
+	    if(transceiver.rx_valid) fsm_packet_next=S_TOKEN0;
 
-	      S_DATA0: fsm_packet_next=S_DATA1;
+	  S_DATA0:
+	    if(!transceiver.rx_active)
+	      fsm_packet_next=S_ACK;
+	    else if(transceiver.rx_valid)
+	      fsm_packet_next=S_DATA1;
 
-	      S_DATA1: fsm_packet_next=S_DATA2;
+	  S_DATA1:
+	    if(!transceiver.rx_active)
+	      fsm_packet_next=S_ACK;
+	    else if(transceiver.rx_valid)
+	      fsm_packet_next=S_DATA2;
 
-	      S_DATA2: ;
-	    endcase
-       end
+	  S_DATA2:
+	    if(!transceiver.rx_active)
+	      fsm_packet_next=S_ACK;
+
+	  S_ACK:
+	    fsm_packet_next<=S_TOKEN0;
+	endcase
+     end
 
    /************************************************************************
-    * Save host data
+    * Read from host
     ************************************************************************/
 
    always_ff @(posedge wb.clk)
-     if(!transceiver.rx_active)
+     if(wb.rst)
        begin
 	  token.pidx<=4'b0;
 	  token.pid <=RESERVED;
@@ -84,31 +88,34 @@ module usb_sie (if_wishbone.master wb,           // Device interface
 	  crc16     <=16'hffff;
        end
      else
-       if(transceiver.rx_valid)
-	 case(fsm_packet_state)
-	   /* Save values during TOKEN stage. */
-	   S_TOKEN0:
+       case(fsm_packet_state)
+	 /* Save values during TOKEN stage. */
+	 S_TOKEN0:
+	   if(transceiver.rx_valid)
 	     begin
-		token.pidx<=transceiver.rx_data[7:4];
+		token.pidx<=       transceiver.rx_data[7:4];
 		token.pid <=pid_t'(transceiver.rx_data[3:0]);
 	     end
 
-	   S_TOKEN1:
+	 S_TOKEN1:
+	   if(transceiver.rx_valid)
 	     begin
 		token.addr   <=transceiver.rx_data[6:0];
 		token.endp[0]<=transceiver.rx_data[7];
 	     end
 
-	   S_TOKEN2:
+	 S_TOKEN2:
+	   if(transceiver.rx_valid)
 	     begin
 		token.endp[3:1]<=transceiver.rx_data[2:0];
 		token.crc5     <=transceiver.rx_data[7:3];
 	     end
 
-	   /* Calculate CRC16 during DATA stage. */
-	   S_DATA0,S_DATA1,S_DATA2:
+	 /* Calculate CRC16 during DATA stage. */
+	 S_DATA0,S_DATA1,S_DATA2:
+	   if(transceiver.rx_valid)
 	     crc16 <=step_crc16(transceiver.rx_data);
-	 endcase
+       endcase
 
    always_ff @(posedge wb.clk)
      if(wb.rst)
@@ -128,25 +135,27 @@ module usb_sie (if_wishbone.master wb,           // Device interface
 	    wb.stb<=1'b0;
 	    wb.we <=1'b0;
 	 end
-       else if(transceiver.rx_valid)
+       else
 	 case(fsm_packet_state)
 	   S_DATA0,S_DATA1:
-	     begin
-		data[0]<=transceiver.rx_data;
-		data[1]<=data[0];
-		data[2]<=data[1];
-	     end
+	     if(transceiver.rx_valid)
+	       begin
+		  data[0]<=transceiver.rx_data;
+		  data[1]<=data[0];
+		  data[2]<=data[1];
+	       end
 
 	   S_DATA2:
-	     begin
-		data[0]<=transceiver.rx_data;
-		data[1]<=data[0];
-		data[2]<=data[1];
+	     if(transceiver.rx_valid)
+	       begin
+		  data[0]<=transceiver.rx_data;
+		  data[1]<=data[0];
+		  data[2]<=data[1];
 
-		wb.cyc<=1'b1;
-		wb.stb<=1'b1;
-		wb.we <=1'b1;
-	     end
+		  wb.cyc<=1'b1;
+		  wb.stb<=1'b1;
+		  wb.we <=1'b1;
+	       end
 	 endcase
 
    always_comb
@@ -156,6 +165,35 @@ module usb_sie (if_wishbone.master wb,           // Device interface
      end
 
 
+   /************************************************************************
+    * Write to host
+    ************************************************************************/
+   always_comb
+     case(fsm_packet_state)
+       S_ACK:
+	 begin
+	    transceiver.tx_data ={~ACK,ACK};
+	    transceiver.tx_valid=1'b1;
+	 end
+
+       S_NAK:
+	 begin
+	    transceiver.tx_data ={~NAK,NAK};
+	    transceiver.tx_valid=1'b1;
+	 end
+
+       S_STALL:
+	 begin
+	    transceiver.tx_data ={~STALL,STALL};
+	    transceiver.tx_valid=1'b1;
+	 end
+
+       default
+	 begin
+	    transceiver.tx_data ='x;
+	    transceiver.tx_valid=1'b0;
+	 end
+     endcase
 
    /************************************************************************
     * validy checks

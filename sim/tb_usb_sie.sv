@@ -4,14 +4,14 @@ module tb_usb_sie;
    timeunit 1ns;
    timeprecision 1ps;
 
-   const realtime tusb=1s/1.5e6,       // low speed
+   const realtime tusb=1s/1.5e6,  // low speed
 		  tclk=1s/24.0e6,
 		  nbit=tusb/tclk;
 
    import types::*;
 
-   bit        reset=1'b1;            // system reset
-   bit        clk;                   // system clock (24 MHz)
+   bit        reset=1'b1;         // system reset
+   bit        clk;                // system clock (24 MHz)
 
    byte GET_DESCRIPTOR[]='{8'h80,8'h06,8'h00,8'h01,8'h00,8'h00,8'h08,8'h00};
 
@@ -64,7 +64,7 @@ module tb_usb_sie;
 	/* Setup Stage */
 	receive_token(SETUP,0,0);
 	receive_data(DATA0,GET_DESCRIPTOR);
-	#30us; //send_handshake(ACK);
+	send_handshake(ACK);
 
 	/* -----\/----- EXCLUDED -----\/-----
 	 /-* Data Stage *-/
@@ -77,9 +77,9 @@ module tb_usb_sie;
 	/* Status Stage */
 	#10us receive_token(OUT,0,0);
 	receive_data(DATA0); // ZLP
-	#30us $stop; //send_handshake(ACK);
+	send_handshake(ACK);
 
-	#10us $finish;
+	#10us $stop/*$finish*/;
      end:main
 
    always @(posedge transceiver.tx_valid)
@@ -113,8 +113,8 @@ module tb_usb_sie;
       /* PID */
       repeat(8*nbit-1) @(posedge clk);
       transceiver.rx_active<=1'b1;
-      transceiver.rx_valid<=1'b1;
-      transceiver.rx_data <={~pid,pid};
+      transceiver.rx_valid <=1'b1;
+      transceiver.rx_data  <={~pid,pid};
       @(posedge clk) transceiver.rx_valid<=1'b0;
 
       /* ADDR and first bit of ENDP */
@@ -139,8 +139,8 @@ module tb_usb_sie;
       /* PID */
       repeat(8*nbit-1) @(posedge clk);
       transceiver.rx_active<=1'b1;
-      transceiver.rx_valid<=1'b1;
-      transceiver.rx_data <={~pid,pid};
+      transceiver.rx_valid <=1'b1;
+      transceiver.rx_data  <={~pid,pid};
       @(posedge clk) transceiver.rx_valid<=1'b0;
 
       foreach(data[i])
@@ -178,8 +178,8 @@ module tb_usb_sie;
       /* PID */
       repeat(8*nbit-1) @(posedge clk);
       transceiver.rx_active<=1'b1;
-      transceiver.rx_valid<=1'b1;
-      transceiver.rx_data <={~pid,pid};
+      transceiver.rx_valid <=1'b1;
+      transceiver.rx_data  <={~pid,pid};
       @(posedge clk) transceiver.rx_valid<=1'b0;
 
       /* EOP */
