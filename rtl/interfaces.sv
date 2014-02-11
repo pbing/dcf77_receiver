@@ -35,8 +35,8 @@ interface if_date_time;
 endinterface:if_date_time
 
 interface if_wishbone #(parameter addr_width=4,data_width=8)
-   (input         rst,            // reset
-    input         clk);           // clk
+   (input rst,                    // reset
+    input clk);                   // clk
 
    logic [addr_width-1:0] addr;   // address
    logic [data_width-1:0] data_m; // data from master
@@ -46,6 +46,6 @@ interface if_wishbone #(parameter addr_width=4,data_width=8)
    logic                  we;     // write enable
    logic                  ack;    // acknowledge
 
-   modport master(input  rst,clk,output addr,data_m,cyc,stb,we,input  data_s,ack);
-   modport slave (input  rst,clk,input  addr,data_m,cyc,stb,we,output data_s,ack);
+   modport master(input rst,clk,output addr,data_m,cyc,stb,we,input  data_s,ack);
+   modport slave (input rst,clk,input  addr,data_m,cyc,stb,we,output data_s,ack);
 endinterface:if_wishbone
