@@ -10,33 +10,46 @@ module tb_usb_sie;
 
    import types::*;
 
-   bit        reset=1'b1;         // system reset
-   bit        clk;                // system clock (24 MHz)
+   bit            clk;                 // system clock (24 MHz)
+   if_transceiver transceiver();       // USB tranceiver interface
+   if_fifo        endpi0(.clock(clk));
+   if_fifo        endpo0(.clock(clk));
+   if_fifo        endpi1(.clock(clk));
 
    byte GET_DESCRIPTOR[]='{8'h80,8'h06,8'h00,8'h01,8'h00,8'h00,8'h08,8'h00};
-
-   if_transceiver transceiver();
-   if_wishbone    wb(.rst(reset),.clk(clk));
-
+   byte SHORT_DEVICE_DESCRIPTOR[]='{8'd18,8'h01,8'h10,8'h01,8'h00,8'h00,8'h00,8'h08};
+   byte DEVICE_DESCRIPTOR[]='{8'd18,8'h01,8'h10,8'h01,8'h00,8'h00,8'h00,8'h08,
+			      8'hd8,8'h04,8'h01,8'h00,8'h00,8'h02,8'h01,8'h02,
+			      8'h00,8'h01};
+	
    usb_sie dut(.*);
+
+   fifo8x16 fifo_endpo0(.clock(endpo0.clock),
+			.data(endpo0.data),
+			.rdreq(endpo0.rdreq),
+			.sclr(endpo0.sclr),
+			.wrreq(endpo0.wrreq),
+			.empty(endpo0.empty),
+			.full(endpo0.full),
+			.q(endpo0.q),
+			.usedw(endpo0.usedw));
+
+   fifo8x16 fifo_endpi0(.clock(endpi0.clock),
+			.data(endpi0.data),
+			.rdreq(endpi0.rdreq),
+			.sclr(endpi0.sclr),
+			.wrreq(endpi0.wrreq),
+			.empty(endpi0.empty),
+			.full(endpi0.full),
+			.q(endpi0.q),
+			.usedw(endpi0.usedw));
+
 
    initial forever #(tclk/2) clk=~clk;
 
-   /* synchronous slave */
-   always @(posedge wb.clk)
-     begin:slave
-	if(wb.rst)
-	  wb.ack<=1'b0;
-	else
-	  if(wb.ack)
-	    wb.ack<=1'b0;
-	  else if(wb.cyc && wb.stb)
-	    wb.ack<=1'b1;
-     end:slave
-
    initial
      begin:main
-	$timeformat(-9,15," ns");
+	$timeformat(-9,2," ns");
 
 	/* Some tests according to http://www.usb.org/developers/whitepapers/crcdes.pdf */
 	assert(crc5({4'he,7'h15})==5'b11101) else $error("CRC5");;
@@ -52,9 +65,14 @@ module tb_usb_sie;
 	transceiver.rx_valid =1'b0;
 	transceiver.rx_error =1'b0;
 	transceiver.tx_ready =1'b0;
+	transceiver.usb_reset=1'b1;
 
+	endpo0.rdreq=1'b0;
+	endpi0.wrreq=1'b0;
+	endpi0.data =8'b0;
+	
 	repeat(3) @(posedge clk);
-	reset=1'b0;
+	transceiver.usb_reset=1'b0;
 	#100ns;
 
 	/**********************************************************************
@@ -65,19 +83,18 @@ module tb_usb_sie;
 	receive_token(SETUP,0,0);
 	receive_data(DATA0,GET_DESCRIPTOR);
 	send_handshake(ACK);
+	io_read_endp0();
 
-	/* -----\/----- EXCLUDED -----\/-----
-	 /-* Data Stage *-/
+	 /* Data Stage */
 	 #10us receive_token(IN,0,0);
-	 //send_data(...);
+	 io_write_endp0(SHORT_DEVICE_DESCRIPTOR);
 	 receive_handshake(ACK);
-	 #5us @(posedge clk) reset=1'b1;@(posedge clk) reset=1'b0; // reset FSM
-	 -----/\----- EXCLUDED -----/\----- */
 
 	/* Status Stage */
 	#10us receive_token(OUT,0,0);
 	receive_data(DATA0); // ZLP
 	send_handshake(ACK);
+	io_read_endp0();
 
 	#10us $stop/*$finish*/;
      end:main
@@ -98,6 +115,31 @@ module tb_usb_sie;
 	join_any
      end:tx
 
+   task io_read_endp0();
+      do @(posedge clk); while(endpo0.empty);
+
+      while(!endpo0.empty)
+	begin
+	   endpo0.rdreq<=1'b1;
+	   @(posedge clk);
+	   endpo0.rdreq<=1'b0;
+	   repeat(30-1) @(posedge clk);
+	end
+   endtask;
+
+   task io_write_endp0(input byte data[]='{});
+      do @(posedge clk); while(endpi0.full);
+      
+      foreach(data[i])
+	begin
+	   endpi0.data  <=data[i];
+	   endpi0.wrreq<=1'b1;
+	   @(posedge clk);
+	   endpi0.wrreq<=1'b0;
+	   repeat(30-1) @(posedge clk);
+	end
+   endtask
+   
    task send_handshake(input pid_t pid);
       do @(posedge clk); while(!transceiver.tx_valid);
 

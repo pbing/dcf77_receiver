@@ -1,7 +1,10 @@
 /* USB Serial Interface Controller */
 
-module usb_sie (if_wishbone.master wb,           // Device interface
-		if_transceiver     transceiver); // USB tranceiver interface
+module usb_sie(input          clk,         // 24 MHz system clock
+	       if_transceiver transceiver, // USB tranceiver interface
+	       if_fifo        endpi0,
+	       if_fifo        endpo0,
+	       if_fifo        endpi1);
 
    import types::*;
 
@@ -10,15 +13,14 @@ module usb_sie (if_wishbone.master wb,           // Device interface
    logic [6:0]  device_addr;  // FIXME assigned device address
    logic        packet_ready; // FIXME fsm_packet_state != S_TOKEN0 && transceiver.eop?
    logic [15:0] crc16;        // CRC16
-   logic [7:0]  data[3];      // needed in order to strip CRC16
 
    /************************************************************************
     * Packet FSM
     ************************************************************************/
    enum int unsigned {S_TOKEN[3],S_DATA[3],S_ACK,S_NAK,S_STALL} fsm_packet_state,fsm_packet_next;
 
-   always_ff @(posedge wb.clk)
-     if(wb.rst)
+   always_ff @(posedge clk)
+     if(transceiver.usb_reset)
        fsm_packet_state<=S_TOKEN0;
      else
        fsm_packet_state<=fsm_packet_next;
@@ -76,8 +78,8 @@ module usb_sie (if_wishbone.master wb,           // Device interface
     * Read from host
     ************************************************************************/
 
-   always_ff @(posedge wb.clk)
-     if(wb.rst)
+   always_ff @(posedge clk)
+     if(transceiver.usb_reset)
        begin
 	  token.pidx<=4'b0;
 	  token.pid <=RESERVED;
@@ -114,56 +116,10 @@ module usb_sie (if_wishbone.master wb,           // Device interface
 	 /* Calculate CRC16 during DATA stage. */
 	 S_DATA0,S_DATA1,S_DATA2:
 	   if(transceiver.rx_valid)
-	     crc16 <=step_crc16(transceiver.rx_data);
+	     begin
+		crc16<=step_crc16(transceiver.rx_data);
+	     end
        endcase
-
-   always_ff @(posedge wb.clk)
-     if(wb.rst)
-       begin
-	  data[0]<=8'h00;
-	  data[1]<=8'h00;
-	  data[2]<=8'h00;
-
-	  wb.cyc<=1'b0;
-	  wb.stb<=1'b0;
-	  wb.we <=1'b0;
-       end
-     else
-       if(wb.ack)
-	 begin
-	    wb.cyc<=1'b0;
-	    wb.stb<=1'b0;
-	    wb.we <=1'b0;
-	 end
-       else
-	 case(fsm_packet_state)
-	   S_DATA0,S_DATA1:
-	     if(transceiver.rx_valid)
-	       begin
-		  data[0]<=transceiver.rx_data;
-		  data[1]<=data[0];
-		  data[2]<=data[1];
-	       end
-
-	   S_DATA2:
-	     if(transceiver.rx_valid)
-	       begin
-		  data[0]<=transceiver.rx_data;
-		  data[1]<=data[0];
-		  data[2]<=data[1];
-
-		  wb.cyc<=1'b1;
-		  wb.stb<=1'b1;
-		  wb.we <=1'b1;
-	       end
-	 endcase
-
-   always_comb
-     begin
-	wb.addr  =token.endp;
-	wb.data_m=data[2];    // Delay wb.data_m by two cycles in order to strip CRC16.
-     end
-
 
    /************************************************************************
     * Write to host
@@ -195,13 +151,26 @@ module usb_sie (if_wishbone.master wb,           // Device interface
 	 end
      endcase
 
+   always_comb
+     begin
+	endpi0.sclr=transceiver.usb_reset;
+	endpo0.sclr=transceiver.usb_reset;
+	endpi1.sclr=transceiver.usb_reset;
+
+	endpo0.data =transceiver.rx_data;
+	endpo0.wrreq=1'b0;
+
+	if(transceiver.rx_valid &&(fsm_packet_state==S_DATA0 || fsm_packet_state==S_DATA1 ||fsm_packet_state==S_DATA2))
+	  if(token.endp==4'd0)
+	    endpo0.wrreq=1'b1;
+     end
+   
    /************************************************************************
     * validy checks
     ************************************************************************/
    /* DEBUG */
    wire dbg_valid_token = valid_token(token);
    wire dbg_valid_data  = valid_crc16(crc16);
-
 
 
    /************************************************************************

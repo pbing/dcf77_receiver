@@ -11,6 +11,9 @@ interface if_transceiver;
    logic       rx_active; // active between SYNC und EOP
    logic       rx_valid;  // data valid pulse
    logic       rx_error;  // error detected
+
+   /* control */
+   logic       usb_reset; // USB reset due to SE0 for 10 ms
 endinterface:if_transceiver
 
 interface if_date_time;
@@ -35,8 +38,8 @@ interface if_date_time;
 endinterface:if_date_time
 
 interface if_wishbone #(parameter addr_width=4,data_width=8)
-   (input rst,                    // reset
-    input clk);                   // clk
+   (input                 rst,    // reset
+    input                 clk);   // clk
 
    logic [addr_width-1:0] addr;   // address
    logic [data_width-1:0] data_m; // data from master
@@ -49,3 +52,24 @@ interface if_wishbone #(parameter addr_width=4,data_width=8)
    modport master(input rst,clk,output addr,data_m,cyc,stb,we,input  data_s,ack);
    modport slave (input rst,clk,input  addr,data_m,cyc,stb,we,output data_s,ack);
 endinterface:if_wishbone
+
+interface if_fifo #(parameter addr_width=4,data_width=8)
+   (input                 clock); // clock
+
+   logic [data_width-1:0] data;   // input data
+   logic [data_width-1:0] q;      // output data
+   logic [addr_width-1:0] usedw;  // used words
+   logic                  sclr;   // synchronous clear (flush FIFO)
+   logic                  rdreq;  // read request
+   logic                  wrreq;  // write request
+   logic                  empty;  // FIFO empty
+   logic                  full;   // FIFO full
+endinterface:if_fifo
+
+interface if_io;
+   logic [15:0] din;  // io data in
+   logic        rd;   // io read
+   logic        wr;   // io write
+   logic [15:0] addr; // io address
+   logic [15:0] dout; // io data out
+endinterface:if_io
