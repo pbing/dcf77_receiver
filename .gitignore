@@ -1,3 +1,5 @@
 syn/
 sim/*
 !sim/*.sv
+rtl/MegaWizard/*
+!rtl/MegaWizard/*.v
