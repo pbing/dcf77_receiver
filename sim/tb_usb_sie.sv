@@ -16,12 +16,18 @@ module tb_usb_sie;
    if_fifo        endpo0(.clock(clk));
    if_fifo        endpi1(.clock(clk));
 
+   var   d_port_t d_o;       // USB port D+,D- (output)
+   logic d_en;               // USB port D+,D- (enable)
+
+
    byte GET_DESCRIPTOR[]='{8'h80,8'h06,8'h00,8'h01,8'h00,8'h00,8'h08,8'h00};
+   byte CHECK1_CRC16[]='{8'h00,8'h01,8'h02,8'h03};
+   byte CHECK2_CRC16[]='{8'h23,8'h45,8'h67,8'h89};
    byte SHORT_DEVICE_DESCRIPTOR[]='{8'd18,8'h01,8'h10,8'h01,8'h00,8'h00,8'h00,8'h08};
    byte DEVICE_DESCRIPTOR[]='{8'd18,8'h01,8'h10,8'h01,8'h00,8'h00,8'h00,8'h08,
 			      8'hd8,8'h04,8'h01,8'h00,8'h00,8'h02,8'h01,8'h02,
 			      8'h00,8'h01};
-	
+
    usb_sie dut(.*);
 
    fifo8x16 fifo_endpo0(.clock(endpo0.clock),
@@ -44,6 +50,9 @@ module tb_usb_sie;
 			.q(endpi0.q),
 			.usedw(endpi0.usedw));
 
+   usb_tx usb_tx(.reset(transceiver.usb_reset),.clk(clk),
+		 .d_o(d_o),.d_en(d_en),
+		 .data(transceiver.tx_data),.valid(transceiver.tx_valid),.ready(transceiver.tx_ready));
 
    initial forever #(tclk/2) clk=~clk;
 
@@ -64,56 +73,46 @@ module tb_usb_sie;
 	transceiver.rx_active=1'b0;
 	transceiver.rx_valid =1'b0;
 	transceiver.rx_error =1'b0;
-	transceiver.tx_ready =1'b0;
 	transceiver.usb_reset=1'b1;
 
 	endpo0.rdreq=1'b0;
 	endpi0.wrreq=1'b0;
 	endpi0.data =8'b0;
-	
+
 	repeat(3) @(posedge clk);
 	transceiver.usb_reset=1'b0;
 	#100ns;
 
 	/**********************************************************************
-	 * Control Read
+	 * Control Read Transfer
 	 **********************************************************************/
 
-	/* Setup Stage */
+	/* Setup Transaction */
 	receive_token(SETUP,0,0);
 	receive_data(DATA0,GET_DESCRIPTOR);
-	send_handshake(ACK);
+	send_pid(ACK);
+
+	/* MCU action */
 	io_read_endp0();
+	//io_write_endp0(CHECK1_CRC16);
+	//io_write_endp0(CHECK2_CRC16);
+	io_write_endp0(SHORT_DEVICE_DESCRIPTOR);
 
-	 /* Data Stage */
-	 #10us receive_token(IN,0,0);
-	 io_write_endp0(SHORT_DEVICE_DESCRIPTOR);
-	 receive_handshake(ACK);
+	/* Data Transaction */
+	#10us receive_token(IN,0,0);
+	//send_data(CHECK1_CRC16);
+	//send_data(CHECK2_CRC16);
+	send_data(SHORT_DEVICE_DESCRIPTOR);
+	#10us receive_pid(ACK);
 
-	/* Status Stage */
+	/* Status Transaction */
 	#10us receive_token(OUT,0,0);
 	receive_data(DATA0); // ZLP
-	send_handshake(ACK);
+	send_pid(ACK);
 	io_read_endp0();
 
 	#10us $stop/*$finish*/;
      end:main
-
-   always @(posedge transceiver.tx_valid)
-     begin:tx
-	/* SYNC */
-	repeat(7*nbit+1) @(posedge clk);
-
-	fork
-	   wait(!transceiver.tx_valid);
-
-	   begin
-	      repeat(8*nbit-1) @(posedge clk);
-	      transceiver.tx_ready<=1'b1;
-	      @(posedge clk) transceiver.tx_ready<=1'b0;
-	   end
-	join_any
-     end:tx
 
    task io_read_endp0();
       do @(posedge clk); while(endpo0.empty);
@@ -129,7 +128,7 @@ module tb_usb_sie;
 
    task io_write_endp0(input byte data[]='{});
       do @(posedge clk); while(endpi0.full);
-      
+
       foreach(data[i])
 	begin
 	   endpi0.data  <=data[i];
@@ -139,13 +138,21 @@ module tb_usb_sie;
 	   repeat(30-1) @(posedge clk);
 	end
    endtask
-   
-   task send_handshake(input pid_t pid);
+
+   task send_pid(input pid_t pid);
       do @(posedge clk); while(!transceiver.tx_valid);
-
       assert(transceiver.tx_data=={~pid,pid});
+      do @(posedge clk); while(!transceiver.tx_ready);
+   endtask
 
-      do @(posedge clk); while(transceiver.tx_valid);
+   task send_data(input byte data[]);
+      send_pid(DATA0);
+
+      foreach (data[i])
+	begin
+	   @(posedge clk) assert(transceiver.tx_data==data[i]);
+	   do @(posedge clk); while(!transceiver.tx_ready);
+	end
    endtask
 
    task receive_token(input pid_t pid,input [6:0] addr,input [3:0] endp);
@@ -216,7 +223,7 @@ module tb_usb_sie;
       receive_data(pid,data);
    endtask
 
-   task receive_handshake(input pid_t pid);
+   task receive_pid(input pid_t pid);
       /* PID */
       repeat(8*nbit-1) @(posedge clk);
       transceiver.rx_active<=1'b1;
