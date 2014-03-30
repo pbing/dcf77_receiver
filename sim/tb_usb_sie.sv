@@ -100,8 +100,8 @@ module tb_usb_sie;
 
 	/* Data Transaction */
 	#10us receive_token(IN,0,0);
-	//send_data(CHECK1_CRC16);
-	//send_data(CHECK2_CRC16);
+	//send_data(CHECK1_CRC16); // CRC16=16'hf75e
+	//send_data(CHECK2_CRC16); // CRC16=16'h7038
 	send_data(SHORT_DEVICE_DESCRIPTOR);
 	#10us receive_pid(ACK);
 
